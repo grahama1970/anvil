@@ -236,17 +236,35 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
             current_iter = 1
             
             # Resume logic: find last successfully completed iteration
-            # We look for the highest iter_N where ITERATION.json exists and is valid (check passed)
-            # Actually, simplistic check: look for highest iter_X dir with ITERATION.json
+            # Check both ITERATION.json existence AND CHECK_iterate.json with exit_code==0
             if cfg.resume:
-                # Find last completed
+                # Find last completed AND validated iteration
                 last_completed = 0
                 for i in range(1, max_iters + 1):
-                    p = store.path("tracks", t.name, f"iter_{i:02d}", "ITERATION.json")
-                    if p.exists():
-                        last_completed = i
-                    else:
+                    iter_path = store.path("tracks", t.name, f"iter_{i:02d}", "ITERATION.json")
+                    check_path = store.path("tracks", t.name, f"iter_{i:02d}", "CHECK_iterate.json")
+                    
+                    if not iter_path.exists():
                         break
+                    
+                    # Also verify the check passed (exit_code == 0)
+                    if check_path.exists():
+                        try:
+                            import json
+                            check_data = json.loads(check_path.read_text())
+                            if check_data.get("exit_code", 2) != 0:
+                                # This iteration failed validation, don't count it
+                                break
+                        except Exception:
+                            # If we can't read check file, assume invalid
+                            break
+                    # If no CHECK file exists, we assume it hasn't been checked yet
+                    # so we should rerun from here (conservative)
+                    elif iter_path.exists():
+                        # ITERATION.json exists but no CHECK - need to rerun check
+                        break
+                    
+                    last_completed = i
                 current_iter = last_completed + 1
             
             if current_iter > max_iters:

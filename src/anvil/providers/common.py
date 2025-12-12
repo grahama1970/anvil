@@ -98,8 +98,28 @@ def build_prompt(
         "proposed_changes": {"has_patch": False},
         "risks": [],
     }
+    
+    # Role-aware patch requirements
+    is_fixer_role = role.lower() in ("fixer", "debugger", "backend_fixer", "frontend_fixer")
+    
+    if is_fixer_role:
+        role_intro = "You are a contract-driven debugging agent. Your job is to FIX BUGS by producing code patches.\n"
+        patch_instruction = (
+            "CRITICAL: You MUST produce a unified diff patch to fix the issue. Do NOT say NO_PATCH.\n"
+            "If the issue description asks for code changes, you MUST provide them.\n"
+        )
+    else:
+        # Breaker, explorer, or other analysis roles
+        role_intro = f"You are a {role} agent. Your job is to analyze code for issues, vulnerabilities, or improvements.\n"
+        patch_instruction = (
+            "If you find an issue, you are ENCOURAGED to produce a unified diff patch that either:\n"
+            "1. Adds a test case that exposes the issue, OR\n"
+            "2. Fixes the vulnerability/bug directly.\n"
+            "A patch is optional but strongly preferred when you have high confidence.\n"
+        )
+    
     return (
-        "You are a contract-driven debugging agent. Your job is to FIX BUGS by producing code patches.\n"
+        role_intro +
         "\n"
         f"ROLE: {role}\n"
         "\n"
@@ -111,9 +131,8 @@ def build_prompt(
         "\n"
         "CONTEXT:\n"
         f"{context}\n"
-        "\n"
-        "CRITICAL: You MUST produce a unified diff patch to fix the issue. Do NOT say NO_PATCH.\n"
-        "If the issue description asks for code changes, you MUST provide them.\n"
+        "\n" +
+        patch_instruction +
         "\n"
         "Return EXACTLY the following markers and contents:\n"
         f"{_BEGIN_JSON}\n"
