@@ -3,8 +3,8 @@ import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.anvil.orchestrator import run_debug_session, RunConfig
-from src.anvil.artifacts.schemas import RunStatus
+from anvil.orchestrator import run_debug_session, RunConfig
+from anvil.artifacts.schemas import RunStatus
 
 def test_resume_logic_skips_run(tmp_path):
     """Test that resume=True loads existing status and can skip execution."""
@@ -21,7 +21,7 @@ def test_resume_logic_skips_run(tmp_path):
     )
     
     # Mock store to return existing status
-    with patch("src.anvil.orchestrator.ArtifactStore") as MockStore:
+    with patch("anvil.orchestrator.ArtifactStore") as MockStore:
         store_instance = MockStore.return_value
         store_instance.run_dir = tmp_path / ".dbg" / "runs" / run_id
         store_instance.read_json.return_value = {
@@ -33,14 +33,14 @@ def test_resume_logic_skips_run(tmp_path):
         
         # Mock other components to avoid actual execution
         with (
-            patch("src.anvil.orchestrator.ContextBuilder") as MockCB,
-            patch("src.anvil.orchestrator.ReproPlan") as MockRP,
-            patch("src.anvil.orchestrator.WorktreeManager") as MockWT,
-            patch("src.anvil.orchestrator.TrackIterate") as MockTI,
-            patch("src.anvil.orchestrator.Blackboard") as MockBB,
-            patch("src.anvil.orchestrator.ScoreComputer") as MockSC,
-            patch("src.anvil.orchestrator.Verify") as MockVerify,
-            patch("src.anvil.orchestrator.Judge") as MockJudge,
+            patch("anvil.orchestrator.ContextBuilder") as MockCB,
+            patch("anvil.orchestrator.ReproPlan") as MockRP,
+            patch("anvil.orchestrator.WorktreeManager") as MockWT,
+            patch("anvil.orchestrator.TrackIterate") as MockTI,
+            patch("anvil.orchestrator.Blackboard") as MockBB,
+            patch("anvil.orchestrator.ScoreComputer") as MockSC,
+            patch("anvil.orchestrator.Verify") as MockVerify,
+            patch("anvil.orchestrator.Judge") as MockJudge,
         ):
             # Configure mocks to pass checks
             MockCB.return_value.check.return_value = 0

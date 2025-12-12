@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.anvil.util.shell import run_cmd, run_cmd_docker, CmdResult
+from anvil.util.shell import run_cmd, run_cmd_docker, CmdResult
 
 def test_run_cmd_list_mode(tmp_path):
     """Test that run_cmd with a list arg uses shell=False."""
@@ -20,7 +20,7 @@ def test_run_cmd_list_mode(tmp_path):
 
 def test_run_cmd_docker_construction(tmp_path):
     """Test that run_cmd_docker constructs correct docker args."""
-    with patch("src.anvil.util.shell.run_cmd") as mock_run_cmd:
+    with patch("anvil.util.shell.run_cmd") as mock_run_cmd:
         mock_run_cmd.return_value = CmdResult(
             cmd="", returncode=0, stdout_path=Path(""), stderr_path=Path(""),
             elapsed_s=0, stdout_bytes=0, stderr_bytes=0

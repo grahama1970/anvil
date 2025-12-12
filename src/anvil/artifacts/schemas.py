@@ -72,3 +72,25 @@ class JudgeDecision(BaseModel):
     reason: str
     scores: dict[str, float] = Field(default_factory=dict)
     disqualified: list[str] = Field(default_factory=list)
+
+
+def validate_iteration_json(data: dict[str, Any]) -> tuple[bool, IterationEnvelope | None, str]:
+    """Validate ITERATION.json against schema.
+    
+    Returns: (is_valid, parsed_envelope, error_message)
+    """
+    try:
+        envelope = IterationEnvelope(**data)
+        return True, envelope, ""
+    except Exception as e:
+        return False, None, str(e)
+
+
+def validate_run_status(data: dict[str, Any]) -> tuple[bool, RunStatus | None, str]:
+    """Validate RUN_STATUS.json against schema."""
+    try:
+        status = RunStatus(**data)
+        return True, status, ""
+    except Exception as e:
+        return False, None, str(e)
+

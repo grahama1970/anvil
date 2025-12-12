@@ -1,19 +1,32 @@
-# Hardening Task: Improve Judge Scoring (Task 3.2)
+# Bug: The `debug run` command should validate inputs before proceeding
 
-**Goal**: Enhance `src/anvil/steps/judge.py` to use per-track verification artifacts.
+## Problem
 
-**Current State**:
+When running `anvil debug run`, if the `--issue` file doesn't exist, the command should fail with a clear error message rather than proceeding and crashing later.
 
-- `Judge.run` (lines 30-134) currently calculates scores based heavily on "confidence" (self-reported) and "Patch existence".
-- It has comments acknowledging Task 3.2: "Run verification per-worktree OR use per-track metrics".
+Currently, if you run:
 
-**Requirements**:
+```bash
+uv run python -m src.anvil.cli debug run --repo . --issue nonexistent.md --run-id test
+```
 
-1.  Read `src/anvil/steps/judge.py`.
-2.  Update the scoring logic to check for the existence of `VERIFY.md` in the track's latest iteration folder (`tracks/{name}/{iter}/VERIFY.md`).
-3.  If `VERIFY.md` exists _and_ contains "PASS" (or similar signal, or just exists as proof of verification run), add significantly to the score (e.g., +40 points).
-4.  If `VERIFY.md` exists but indicates failure (e.g. contains "FAIL"), deduct points.
-5.  Generate a patch to implement this logic.
+The system starts processing and fails later when trying to read the file.
 
-**Context**:
-Anvil tracks may run their own verification steps. The Judge should prioritize tracks that have actually run verification over those that just produced a patch with high confidence.
+## Expected Behavior
+
+1. If `--issue` points to a file that doesn't exist, exit immediately with:
+
+   - Exit code 1
+   - Error message: "Issue file not found: <path>"
+
+2. Similarly, if `--tracks-file` is specified but doesn't exist, fail fast.
+
+## Acceptance Criteria
+
+1. Add validation in `cli.py` debug run command
+2. Add test in `tests/test_cli.py` that verifies the error handling
+
+## Files to Change
+
+- `src/anvil/cli.py` - Add file existence check before calling orchestrator
+- `tests/test_cli.py` - Add test for nonexistent issue file

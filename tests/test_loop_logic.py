@@ -5,9 +5,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch, AsyncMock
 import shutil
 
-from src.anvil.orchestrator import run_debug_session, RunConfig
-from src.anvil.artifacts.store import ArtifactStore
-from src.anvil.providers.base import Provider, ProviderResult
+from anvil.orchestrator import run_debug_session, RunConfig
+from anvil.artifacts.store import ArtifactStore
+from anvil.providers.base import Provider, ProviderResult
 
 
 
@@ -49,15 +49,15 @@ tracks:
         # We can patch it.
         
         with (
-            patch("src.anvil.orchestrator.ContextBuilder") as MockCB,
-            patch("src.anvil.orchestrator.ReproPlan") as MockRP,
-            patch("src.anvil.orchestrator.WorktreeManager") as MockWT,
-            patch("src.anvil.orchestrator._provider_for_track") as MockProviderLoader,
+            patch("anvil.orchestrator.ContextBuilder") as MockCB,
+            patch("anvil.orchestrator.ReproPlan") as MockRP,
+            patch("anvil.orchestrator.WorktreeManager") as MockWT,
+            patch("anvil.orchestrator._provider_for_track") as MockProviderLoader,
             # We assume TrackIterate works, but we can verify it creates files. 
             # Actually better to let TrackIterate run to assert side effects on fs?
             # But TrackIterate needs real redactor etc.
             # Let's mock TrackIterate.run to just create the ITERATION.json file so the loop logic (check signal) finds it!
-            patch("src.anvil.orchestrator.TrackIterate") as MockTI_Cls, 
+            patch("anvil.orchestrator.TrackIterate") as MockTI_Cls, 
         ):
             # Create dummy artifacts
             run_dir = self.tmp_dir / ".dbg" / args.run_id
@@ -139,10 +139,10 @@ tracks:
         )
 
         with (
-            patch("src.anvil.orchestrator.ContextBuilder") as MockCB,
-            patch("src.anvil.orchestrator.ReproPlan") as MockRP,
-            patch("src.anvil.orchestrator._provider_for_track") as MockLoader,
-            patch("src.anvil.orchestrator.TrackIterate") as MockTI_Cls, 
+            patch("anvil.orchestrator.ContextBuilder") as MockCB,
+            patch("anvil.orchestrator.ReproPlan") as MockRP,
+            patch("anvil.orchestrator._provider_for_track") as MockLoader,
+            patch("anvil.orchestrator.TrackIterate") as MockTI_Cls, 
         ):
             # Create dummy artifacts
             run_dir = self.tmp_dir / ".dbg" / args.run_id

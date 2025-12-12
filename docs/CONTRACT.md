@@ -2,7 +2,12 @@
 
 ## Overview
 
-Anvil is a **no-vibes** debugging and hardening orchestrator. It guarantees that any debugging session follows a strict, verifyable process, producing structured artifacts at every step. This contract defines the boundaries of the system and the obligations of its components.
+Anvil is a **no-vibes** debugging and hardening orchestrator. It guarantees that any session follows a strict, verifiable process, producing structured artifacts at every step. This contract defines the boundaries of the system and the obligations of its components.
+
+### Two Core Modes
+
+- **Debug Mode**: Fix a known bug or issue. Takes an issue description, runs parallel tracks to find fixes.
+- **Harden Mode**: Proactively find vulnerabilities. Runs "breaker" tracks that search for bugs, missing tests, security issues.
 
 ## 1. System Inputs
 
@@ -29,11 +34,16 @@ Located in `.dbg/runs/<run_id>/tracks/<track_name>/`.
 - **`iter_<NN>/ITERATION.txt`**: Raw text output (redacted).
 - **`iter_<NN>/PATCH.diff`**: (Optional) Unified diff proposed by the provider.
 
-### 2.3 Verification & Decision
+### 2.3 Verification & Decision (Debug Mode)
 
 - **`VERIFY.md`**: Results of verification commands.
 - **`SCORECARD.json`**: Automated scoring of each track.
 - **`DECISION.md`**: Final decision on the winning track.
+
+### 2.4 Harden Mode Artifacts
+
+- **`HARDEN.md`**: Report with baseline verification, findings by track, and generated patches.
+- **`BLACKBOARD.md`**: Shared observations between breaker tracks.
 
 ## 3. Invariants ("No Vibes")
 

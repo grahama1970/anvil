@@ -1,6 +1,6 @@
 import pytest
 from typer.testing import CliRunner
-from src.anvil.cli import app
+from anvil.cli import app
 
 runner = CliRunner()
 

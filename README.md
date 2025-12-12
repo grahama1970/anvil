@@ -31,6 +31,30 @@ For detailed usage, see the [Quickstart Guide](QUICKSTART.md).
 
 **Docker mode available**: Use `--docker` flag for containerized verify execution (see [Quickstart](QUICKSTART.md#docker-mode-recommended-for-isolation)).
 
+## Simple API (for orchestrator agents)
+
+```python
+import anvil
+
+# Debug a known bug
+result = anvil.debug("/path/to/repo", "Login crashes on click")
+print(result["status"])    # "OK" or "FAIL"
+print(result["patches"])   # List of generated patch files
+
+# Harden a codebase (find vulnerabilities)
+result = anvil.harden("/path/to/repo")
+print(result["findings"])  # HARDEN.md content
+print(result["patches"])   # List of generated patch files
+
+# With optional parameters
+result = anvil.debug(
+    "/path/to/repo",
+    "Bug description",
+    run_id="custom-id-001",
+    tracks_file="/path/to/tracks.yaml",
+)
+```
+
 ## “No vibes” enforcement
 
 A track is **DISQUALIFIED** if it:

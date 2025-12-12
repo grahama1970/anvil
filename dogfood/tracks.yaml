@@ -1,6 +1,6 @@
 tracks:
-  - name: readme_update
-    role: technical_writer
+  - name: contract_enhancer
+    role: senior_developer
     provider: copilot
     model: gpt-5
     budgets:

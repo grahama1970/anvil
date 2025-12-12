@@ -193,6 +193,8 @@ def debug_run(
     """Run the full debug workflow."""
     issue_text = None
     if issue_file:
+        if not issue_file.exists():
+            raise typer.BadParameter(f"Issue file not found: {issue_file}")
         issue_text = read_text_file(issue_file)
     elif issue:
         issue_text = issue
@@ -281,9 +283,11 @@ def harden_run(
         candidate_run=candidate_run,
         candidate_track=candidate_track,
     )
-    result = run_harden_session(cfg)
+    result = asyncio.run(run_harden_session(cfg))
     console.print(f"[bold]Harden[/bold] {rid} finished with status: {result.status}")
     console.print(f"Artifacts: {result.run_dir}")
+    if result.decision_file:
+        console.print(f"Report: {result.decision_file}")
 
 
 @harden_app.command("status")

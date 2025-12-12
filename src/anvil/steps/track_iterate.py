@@ -44,11 +44,13 @@ class TrackIterate:
         role: str,
         provider: Provider,
         iteration: int,
-        directions_profile: str,
         context_text: str,
         blackboard_text: str,
+        directions_profile: str = "strict_minimal_patch",
+        directions_text: str | None = None,
     ) -> None:
-        directions = load_profile(directions_profile)
+        # Use raw directions_text if provided, otherwise load from profile
+        directions = directions_text if directions_text else load_profile(directions_profile)
         try:
             result = await provider.run_iteration(
                 repo=repo,

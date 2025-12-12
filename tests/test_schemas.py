@@ -2,12 +2,12 @@ import pytest
 import importlib.resources
 import yaml
 from pathlib import Path
-from src.anvil.config import load_tracks_file
+from anvil.config import load_tracks_file
 
 def test_templates_exist():
     # Verify we can load the bundled templates
-    pkg = "src.anvil.templates" 
-    # Note: src.anvil.templates might not be importable if not a package with __init__.py?
+    pkg = "anvil.templates" 
+    # Note: anvil.templates might not be importable if not a package with __init__.py?
     # In the code `debugger.templates` is used (installed/package context).
     # Here tests are running against source. 
     # Here tests are running against source.
@@ -25,7 +25,7 @@ def test_templates_exist():
     # The application code does `pkg = "anvil.templates"`, anticipating installation as `anvil` package?
     # Or assuming `anvil` is in path.
     # If I run `PYTHONPATH=. pytest`, `src` is in path? No, `.` is.
-    # So `import src.anvil` works.
+    # So `import anvil` works.
     # `anvil` import (as used in `paths.py` -> `pkg = "anvil.templates"`) likely relies on `src` being in path
     # OR `anvil` being the package installed.
     # If I check `src/anvil/util/paths.py`: `pkg = "anvil.templates"`

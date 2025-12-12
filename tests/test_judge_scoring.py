@@ -1,8 +1,8 @@
 
 import pytest
 from pathlib import Path
-from src.anvil.artifacts.store import ArtifactStore
-from src.anvil.steps.judge import Judge
+from anvil.artifacts.store import ArtifactStore
+from anvil.steps.judge import Judge
 
 def test_judge_prefers_verified(tmp_path):
     """Judge should prefer a track with PASS verification over one without."""

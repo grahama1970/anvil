@@ -346,16 +346,20 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
         decision = Judge().run(store, [t.name for t in tracks], disqualified=disqualified)
         Judge().check(store, cfg.repo_path)
 
-        # Apply (only if we have a patch)
+        # Apply (only if we have a patch and ANVIL_AUTO_APPLY is enabled)
+        import os
+        auto_apply = os.environ.get("ANVIL_AUTO_APPLY", "1").lower() in ("1", "true", "yes")
         winner = decision.winner
         applied = False
-        if winner:
+        if winner and auto_apply:
             patches = sorted(store.path("tracks", winner).glob("iter_*/PATCH.diff"))
             if patches:
                 patch = patches[-1]
                 ev.emit(stage="apply", action="run", winner=winner, patch=str(patch))
                 rc = Apply().run(store, cfg.repo_path, patch_path=patch)
                 applied = rc == 0
+        elif winner and not auto_apply:
+            ev.emit(stage="apply", action="skipped", reason="ANVIL_AUTO_APPLY disabled")
 
         final_status = "OK" if winner and applied else "DONE"
         store.write_status(
@@ -381,20 +385,24 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
         return RunResult(status="FAIL", run_dir=store.run_dir)
 
 
-def run_harden_session(cfg: RunConfig) -> RunResult:
+async def run_harden_session(cfg: RunConfig) -> RunResult:
+    """Run a hardening session with parallel breaker tracks.
+    
+    Harden mode goal: Find vulnerabilities, suggest tests, improve code quality.
+    Unlike debug mode (fix a known bug), harden mode proactively finds issues.
+    """
     store = ArtifactStore(cfg.run_dir())
     store.ensure()
     ev = EventLog(store.path("events.jsonl"))
 
     try:
-        # Load tracks just like debug, but we might filter for 'breaker' roles later
-        tracks, use_ts, _ = _load_tracks(cfg)
+        tracks, use_ts, max_files = _load_tracks(cfg)
         
         meta = RunMeta(
             run_id=cfg.run_id,
             repo_path=str(cfg.repo_path),
             mode=cfg.mode,
-            issue_text_present=False,
+            issue_text_present=bool(cfg.issue_text),
             use_docker=cfg.use_docker,
             use_treesitter=use_ts,
             tracks=[t.__dict__ for t in tracks],
@@ -404,46 +412,172 @@ def run_harden_session(cfg: RunConfig) -> RunResult:
             RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="RUNNING", message="starting harden")
         )
 
-        wt = WorktreeManager(repo=cfg.repo_path, store=store)
-        wt.create_worktrees([t.name for t in tracks])
-        wt.write_worktree_contracts(tracks)
-
-        # For Harden:
-        # 1. Verify baseline (optional, maybe we assume it's good or broken?)
-        # 2. Iterate tracks: They should be "breaker" role ideally.
-        #    - They read code, try to find bugs, write test cases (repro).
-        #    - Similar loop to debug but directions might differ.
+        # Step 1: Build context (same as debug but may focus on different aspects)
+        ev.emit(stage="harden", action="context")
+        ctx_chk = ContextBuilder().check(store, cfg.repo_path)
+        if ctx_chk != 0:
+            ContextBuilder().run(
+                store,
+                cfg.repo_path,
+                issue_text=cfg.issue_text or "Harden this codebase: find bugs, vulnerabilities, missing tests.",
+                use_treesitter=use_ts,
+                max_files=max_files,
+            )
         
-        # For now, simpler implementation: Just run verify to get baseline.
-        # then maybe run one iteration of each track? 
-        # The prompt directions profile will handle the "harden" behavior difference.
+        context_md = store.path("CONTEXT.md").read_text(encoding="utf-8", errors="ignore")
         
+        # Step 2: Baseline verification
         ev.emit(stage="harden", action="verify_baseline")
         Verify().run(store, cfg.repo_path, use_docker=cfg.use_docker)
         
-        # ... (In future: loop tracks here) ...
-        
-        verify_md = (
+        baseline_verify = (
             store.path("VERIFY.md").read_text(encoding="utf-8", errors="ignore")
             if store.path("VERIFY.md").exists()
-            else ""
+            else "No baseline verification ran."
         )
-        harden_md = [
-            "# HARDEN",
+        
+        # Step 3: Setup worktrees for breaker tracks
+        wt = WorktreeManager(repo=cfg.repo_path, store=store)
+        wt.create_worktrees([t.name for t in tracks])
+        wt.write_worktree_contracts(tracks)
+        
+        # Step 4: Create harden-specific blackboard with baseline info
+        harden_blackboard = [
+            "# Harden Blackboard",
+            "",
+            "## Objective",
+            "Find vulnerabilities, missing tests, edge cases, and code quality issues.",
+            "",
+            "## Baseline Verification",
+            baseline_verify[:2000] if len(baseline_verify) > 2000 else baseline_verify,
+        ]
+        store.write_text("BLACKBOARD.md", "\n".join(harden_blackboard))
+        
+        findings: dict[str, list[str]] = {}
+        disqualified: list[str] = []
+        
+        # Step 5: Run parallel breaker tracks
+        async def _process_breaker_track(t: TrackConfig) -> None:
+            max_iters = t.budgets.max_iters
+            track_findings: list[str] = []
+            
+            try:
+                provider = _provider_for_track(t)
+            except Exception as exc:
+                provider = _ErrorProvider(error=f"Provider init failed: {exc}")
+            
+            iter_step = TrackIterate()
+            
+            for iteration in range(1, max_iters + 1):
+                ev.emit(
+                    stage="harden_iterate",
+                    track=t.name,
+                    iter=iteration,
+                    action="breaker_call",
+                )
+                
+                bb_path = store.path("BLACKBOARD.md")
+                current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
+                
+                # Harden-specific directions
+                harden_directions = (
+                    f"You are a security/quality breaker agent.\n"
+                    f"Your goal: Find bugs, vulnerabilities, edge cases, or missing tests in this codebase.\n"
+                    f"For each finding, produce a PATCH.diff that either:\n"
+                    f"1. Adds a test case that exposes the issue, OR\n"
+                    f"2. Fixes the vulnerability directly.\n"
+                    f"Focus on: null checks, error handling, race conditions, input validation.\n"
+                )
+                
+                await iter_step.run(
+                    store=store,
+                    repo=cfg.repo_path,
+                    track=t.name,
+                    role=t.role or "breaker",
+                    directions_text=harden_directions,
+                    context_text=context_md[:15000],
+                    blackboard_text=current_bb,
+                    iteration=iteration,
+                    provider=provider,
+                )
+                
+                # Check iteration result
+                chk = iter_step.check(store, cfg.repo_path, track=t.name, iteration=iteration)
+                if chk != 0:
+                    disqualified.append(t.name)
+                    ev.emit(stage="harden_iterate", track=t.name, action="disqualified")
+                    break
+                
+                # Read findings from iteration
+                iter_json_path = store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
+                if iter_json_path.exists():
+                    import json
+                    iter_data = json.loads(iter_json_path.read_text(encoding="utf-8"))
+                    if iter_data.get("hypothesis"):
+                        track_findings.append(f"[Iter {iteration}] {iter_data['hypothesis']}")
+                    
+                    # Check for DONE signal
+                    if iter_data.get("status_signal") == "DONE":
+                        break
+                
+                # Update blackboard with findings from all tracks
+                if track_findings:
+                    Blackboard().write(store, [t.name])
+            
+            findings[t.name] = track_findings
+        
+        # Run all breaker tracks in parallel
+        ev.emit(stage="harden", action="parallel_breakers", num_tracks=len(tracks))
+        await asyncio.gather(*[_process_breaker_track(t) for t in tracks])
+        
+        # Step 6: Compile HARDEN.md report
+        harden_report = [
+            "# HARDEN Report",
+            "",
+            f"Run ID: `{cfg.run_id}`",
+            f"Tracks: {len(tracks)}",
+            f"Disqualified: {len(disqualified)}",
             "",
             "## Baseline Verification",
             "",
-            verify_md,
+            baseline_verify[:3000] if len(baseline_verify) > 3000 else baseline_verify,
             "",
-            "## Tracks",
-            "(Placeholder for breaker tracks output)",
+            "## Findings by Track",
+            "",
         ]
-        store.write_text("HARDEN.md", "\n".join(harden_md))
-
+        
+        for track_name, track_findings in findings.items():
+            harden_report.append(f"### {track_name}")
+            if track_name in disqualified:
+                harden_report.append("**DISQUALIFIED**")
+            if track_findings:
+                for f in track_findings:
+                    harden_report.append(f"- {f}")
+            else:
+                harden_report.append("No findings.")
+            harden_report.append("")
+        
+        # List any patches generated
+        harden_report.append("## Generated Patches")
+        harden_report.append("")
+        for t in tracks:
+            for i in range(1, t.budgets.max_iters + 1):
+                patch_path = store.path("tracks", t.name, f"iter_{i:02d}", "PATCH.diff")
+                if patch_path.exists():
+                    harden_report.append(f"- `{patch_path.relative_to(store.run_dir)}`")
+        
+        store.write_text("HARDEN.md", "\n".join(harden_report))
+        
         store.write_status(
-            RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="DONE", message="harden completed")
+            RunStatus(
+                run_id=cfg.run_id, 
+                mode=cfg.mode, 
+                status="DONE", 
+                message=f"harden completed, {len(findings)} tracks processed",
+                disqualified_tracks=disqualified,
+            )
         )
-        return RunResult(status="DONE", run_dir=store.run_dir)
+        return RunResult(status="DONE", run_dir=store.run_dir, decision_file=store.path("HARDEN.md"))
     except Exception as exc:  # pragma: no cover
         ev.emit(stage="crash", action="exception", error=str(exc))
         store.write_text("CRASH.txt", traceback.format_exc())
@@ -451,3 +585,4 @@ def run_harden_session(cfg: RunConfig) -> RunResult:
             RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="FAIL", message=f"crash: {exc}")
         )
         return RunResult(status="FAIL", run_dir=store.run_dir)
+

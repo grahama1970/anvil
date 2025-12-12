@@ -4,7 +4,7 @@ import subprocess
 import sys
 import os
 from pathlib import Path
-from src.anvil.artifacts.store import ArtifactStore
+from anvil.artifacts.store import ArtifactStore
 
 def test_reachability_manual(tmp_path):
     """
