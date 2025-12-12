@@ -80,14 +80,32 @@ class Judge:
                 except Exception:
                     details.append("Error reading confidence")
             
-            # Patch presence
+            # Patch presence - role-aware penalty
             patches = list(tdir.glob("iter_*/PATCH.diff"))
+            # Check track role from latest iteration
+            track_role = "fixer"  # default
+            if iters:
+                try:
+                    import json
+                    data = json.loads(iters[-1].read_text())
+                    # Role might be stored in iteration or inferred from track name
+                    if "breaker" in t.lower() or "explorer" in t.lower():
+                        track_role = "breaker"
+                except Exception:
+                    pass
+            
             if patches:
                 score += 20.0
                 details.append("Patch found (+20)")
             else:
-                score -= 50.0 # No patch is bad if you are a fixer
-                details.append("No patch (-50)")
+                # Only penalize fixer roles heavily for missing patches
+                if track_role == "fixer":
+                    score -= 50.0
+                    details.append("No patch (-50, fixer role)")
+                else:
+                    # Breaker/explorer tracks: small penalty or neutral
+                    score -= 10.0
+                    details.append("No patch (-10, non-fixer role)")
 
             # Per-track VERIFY.md existence and signal
             verify_files = sorted(tdir.glob("iter_*/VERIFY.md"))
@@ -142,7 +160,11 @@ class Judge:
             "## Scores",
         ]
         for t, s in scores.items():
-            md.append(f"- {t}: {s}")
+            md.append(f"- {t}: {s:.1f}")
+            # Include track details for transparency ("no vibes")
+            if t in track_details:
+                for detail in track_details[t]:
+                    md.append(f"  - {detail}")
         if disqualified:
             md += ["", "## Disqualified", "", ", ".join(disqualified)]
         store.write_text("DECISION.md", "\n".join(md) + "\n")

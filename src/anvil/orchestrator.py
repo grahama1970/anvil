@@ -462,73 +462,99 @@ async def run_harden_session(cfg: RunConfig) -> RunResult:
             track_findings: list[str] = []
             
             try:
-                provider = _provider_for_track(t)
-            except Exception as exc:
-                provider = _ErrorProvider(error=f"Provider init failed: {exc}")
-            
-            iter_step = TrackIterate()
-            
-            for iteration in range(1, max_iters + 1):
-                ev.emit(
-                    stage="harden_iterate",
-                    track=t.name,
-                    iter=iteration,
-                    action="breaker_call",
-                )
+                try:
+                    provider = _provider_for_track(t)
+                except Exception as exc:
+                    provider = _ErrorProvider(error=f"Provider init failed: {exc}")
                 
-                bb_path = store.path("BLACKBOARD.md")
-                current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
+                iter_step = TrackIterate()
                 
-                # Harden-specific directions
-                harden_directions = (
-                    f"You are a security/quality breaker agent.\n"
-                    f"Your goal: Find bugs, vulnerabilities, edge cases, or missing tests in this codebase.\n"
-                    f"For each finding, produce a PATCH.diff that either:\n"
-                    f"1. Adds a test case that exposes the issue, OR\n"
-                    f"2. Fixes the vulnerability directly.\n"
-                    f"Focus on: null checks, error handling, race conditions, input validation.\n"
-                )
-                
-                await iter_step.run(
-                    store=store,
-                    repo=cfg.repo_path,
-                    track=t.name,
-                    role=t.role or "breaker",
-                    directions_text=harden_directions,
-                    context_text=context_md[:15000],
-                    blackboard_text=current_bb,
-                    iteration=iteration,
-                    provider=provider,
-                )
-                
-                # Check iteration result
-                chk = iter_step.check(store, cfg.repo_path, track=t.name, iteration=iteration)
-                if chk != 0:
-                    disqualified.append(t.name)
-                    ev.emit(stage="harden_iterate", track=t.name, action="disqualified")
-                    break
-                
-                # Read findings from iteration
-                iter_json_path = store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
-                if iter_json_path.exists():
-                    import json
-                    iter_data = json.loads(iter_json_path.read_text(encoding="utf-8"))
-                    if iter_data.get("hypothesis"):
-                        track_findings.append(f"[Iter {iteration}] {iter_data['hypothesis']}")
+                for iteration in range(1, max_iters + 1):
+                    ev.emit(
+                        stage="harden_iterate",
+                        track=t.name,
+                        iter=iteration,
+                        action="breaker_call",
+                    )
                     
-                    # Check for DONE signal
-                    if iter_data.get("status_signal") == "DONE":
+                    bb_path = store.path("BLACKBOARD.md")
+                    current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
+                    
+                    # Harden-specific directions
+                    harden_directions = (
+                        f"You are a security/quality breaker agent.\n"
+                        f"Your goal: Find bugs, vulnerabilities, edge cases, or missing tests in this codebase.\n"
+                        f"For each finding, produce a PATCH.diff that either:\n"
+                        f"1. Adds a test case that exposes the issue, OR\n"
+                        f"2. Fixes the vulnerability directly.\n"
+                        f"Focus on: null checks, error handling, race conditions, input validation.\n"
+                    )
+                    
+                    await iter_step.run(
+                        store=store,
+                        repo=cfg.repo_path,
+                        track=t.name,
+                        role=t.role or "breaker",
+                        directions_text=harden_directions,
+                        context_text=context_md[:15000],
+                        blackboard_text=current_bb,
+                        iteration=iteration,
+                        provider=provider,
+                    )
+                    
+                    # Check iteration result
+                    chk = iter_step.check(store, cfg.repo_path, track=t.name, iteration=iteration)
+                    if chk != 0:
+                        if t.name not in disqualified:
+                            disqualified.append(t.name)
+                        ev.emit(stage="harden_iterate", track=t.name, action="disqualified", reason="iterate_check_failed")
                         break
-                
-                # Update blackboard with findings from all tracks
-                if track_findings:
-                    Blackboard().write(store, [t.name])
+                    
+                    # Read findings from iteration
+                    iter_json_path = store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
+                    if iter_json_path.exists():
+                        import json
+                        try:
+                            iter_data = json.loads(iter_json_path.read_text(encoding="utf-8"))
+                        except Exception:
+                            iter_data = {}
+                        
+                        if iter_data.get("hypothesis"):
+                            track_findings.append(f"[Iter {iteration}] {iter_data['hypothesis']}")
+                        
+                        # Check for DONE signal
+                        if iter_data.get("status_signal") == "DONE":
+                            break
+                    
+                    # Update blackboard with findings from ALL tracks (not just this one)
+                    Blackboard().write(store, [tr.name for tr in tracks])
+            
+            except Exception as exc:
+                # Per-track crash isolation: do not crash whole harden session
+                if t.name not in disqualified:
+                    disqualified.append(t.name)
+                ev.emit(stage="harden_iterate", track=t.name, action="crash", error=str(exc))
+                store.path("tracks", t.name).mkdir(parents=True, exist_ok=True)
+                store.write_text(
+                    store.path("tracks", t.name, "CRASH.txt"),
+                    traceback.format_exc(),
+                )
             
             findings[t.name] = track_findings
         
-        # Run all breaker tracks in parallel
+        # Run all breaker tracks in parallel (do not crash harden if one fails)
         ev.emit(stage="harden", action="parallel_breakers", num_tracks=len(tracks))
-        await asyncio.gather(*[_process_breaker_track(t) for t in tracks])
+        results = await asyncio.gather(*[_process_breaker_track(t) for t in tracks], return_exceptions=True)
+        for t, r in zip(tracks, results):
+            if isinstance(r, Exception):
+                if t.name not in disqualified:
+                    disqualified.append(t.name)
+                ev.emit(stage="harden_iterate", track=t.name, action="crash", error=str(r))
+                store.path("tracks", t.name).mkdir(parents=True, exist_ok=True)
+                store.write_text(
+                    store.path("tracks", t.name, "CRASH.txt"),
+                    "".join(traceback.format_exception(type(r), r, r.__traceback__)),
+                )
         
         # Step 6: Compile HARDEN.md report
         harden_report = [
