@@ -89,6 +89,22 @@ class Judge:
                 score -= 50.0 # No patch is bad if you are a fixer
                 details.append("No patch (-50)")
 
+            # Per-track VERIFY.md existence and signal
+            verify_files = sorted(tdir.glob("iter_*/VERIFY.md"))
+            if verify_files:
+                score += 10.0  # small bonus for having run verification
+                details.append("Verification artifact found (+10)")
+                try:
+                    vtext = verify_files[-1].read_text().upper()
+                    if "PASS" in vtext:
+                        score += 40.0
+                        details.append("Verification PASS (+40)")
+                    elif "FAIL" in vtext:
+                        score -= 40.0
+                        details.append("Verification FAIL (-40)")
+                except Exception:
+                    details.append("Error reading VERIFY.md")
+
             # Global verify pass? (Assuming the last applied verify was this track? No, wait.)
             # If orchestrator runs verify *after* all tracks, it's checking the *base* repo usually, or the last applied patch?
             # Actually Orchestrator currently runs Verify() on `cfg.repo_path`.
