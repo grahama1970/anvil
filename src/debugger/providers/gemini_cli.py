@@ -1,14 +1,15 @@
 """Gemini CLI provider.
 
 CONTRACT
-- Invokes `gemini` in one-shot mode.
-- Returns a valid IterationEnvelope-like JSON object (schema_version=1).
-- May optionally return a unified diff.
-- If `gemini` is not available or the output can't be parsed, raises an exception.
-
-Notes
-- Model selection is per-track (`tracks.yaml`: `provider: gemini`, `model: gemini-3-pro`, etc.).
-- We request text output and parse strict BEGIN/END markers to keep results deterministic.
+- Inputs: Repo, track, iteration, role, directions, context
+- Outputs (required):
+  - ProviderResult with parsed JSON and optional patch
+- Invariants:
+  - Invokes `gemini` CLI with specified model
+  - Enforces strict BEGIN_ITERATION_JSON markers
+- Failure:
+  - Raises RuntimeError if gemini CLI fails or returns non-zero
+  - Raises ValueError if output format is invalid
 """
 
 from __future__ import annotations
@@ -21,82 +22,12 @@ from typing import Any
 
 from ..util.shell import which
 from .base import Provider, ProviderResult
+from .common import extract_between, normalize_iteration_json, build_prompt
 
 _BEGIN_JSON = "BEGIN_ITERATION_JSON"
 _END_JSON = "END_ITERATION_JSON"
 _BEGIN_DIFF = "BEGIN_PATCH_DIFF"
 _END_DIFF = "END_PATCH_DIFF"
-
-
-def _between(text: str, start: str, end: str) -> str | None:
-    if start not in text:
-        return None
-    after = text.split(start, 1)[1]
-    if end not in after:
-        return None
-    return after.split(end, 1)[0].strip()
-
-
-def _normalize_iteration_json(
-    it: dict[str, Any], *, track: str, iteration: int, has_patch: bool
-) -> dict[str, Any]:
-    it.setdefault("schema_version", 1)
-    it["track"] = track
-    it["iteration"] = iteration
-    it.setdefault("status_signal", "NEEDS_MORE_WORK")
-    it.setdefault("hypothesis", "")
-    it.setdefault("confidence", 0.0)
-    it.setdefault("experiments", [])
-    it.setdefault("proposed_changes", {})
-    if isinstance(it["proposed_changes"], dict):
-        it["proposed_changes"].setdefault("has_patch", has_patch)
-    it.setdefault("risks", [])
-    return it
-
-
-def _build_prompt(
-    *,
-    track: str,
-    iteration: int,
-    role: str,
-    directions: str,
-    context: str,
-    blackboard: str,
-) -> str:
-    schema_hint = {
-        "schema_version": 1,
-        "track": track,
-        "iteration": iteration,
-        "status_signal": "CONTINUE | SKIP_TO_VERIFY | READY_FOR_FIX | NEEDS_MORE_WORK",
-        "hypothesis": "string",
-        "confidence": 0.0,
-        "experiments": [],
-        "proposed_changes": {"has_patch": False},
-        "risks": [],
-    }
-    return (
-        "You are a contract-driven debugging agent.\n"
-        "\n"
-        f"ROLE: {role}\n"
-        "\n"
-        "DIRECTIONS:\n"
-        f"{directions}\n"
-        "\n"
-        "BLACKBOARD (observations-only):\n"
-        f"{blackboard}\n"
-        "\n"
-        "CONTEXT:\n"
-        f"{context}\n"
-        "\n"
-        "Return ONLY the following markers and contents.\n"
-        f"{_BEGIN_JSON}\n"
-        "JSON must be a single object matching this shape:\n"
-        f"{json.dumps(schema_hint, indent=2)}\n"
-        f"{_END_JSON}\n"
-        f"{_BEGIN_DIFF}\n"
-        "Either a unified diff (git-style) OR the literal text NO_PATCH.\n"
-        f"{_END_DIFF}\n"
-    )
 
 
 @dataclass
@@ -119,7 +50,7 @@ class GeminiCliProvider(Provider):
         if which(self.gemini_cmd) is None:
             raise RuntimeError("gemini CLI not found in PATH")
 
-        prompt = _build_prompt(
+        prompt = build_prompt(
             track=track,
             iteration=iteration,
             role=role,
@@ -148,19 +79,19 @@ class GeminiCliProvider(Provider):
         if proc.returncode != 0:
             raise RuntimeError(f"gemini failed (rc={proc.returncode}). Output:\n{combined}")
 
-        json_block = _between(combined, _BEGIN_JSON, _END_JSON)
+        json_block = extract_between(combined, _BEGIN_JSON, _END_JSON)
         if not json_block:
             raise ValueError("gemini output missing iteration JSON markers")
         it = json.loads(json_block)
         if not isinstance(it, dict):
             raise ValueError("iteration JSON must be an object")
 
-        diff_block = _between(combined, _BEGIN_DIFF, _END_DIFF)
+        diff_block = extract_between(combined, _BEGIN_DIFF, _END_DIFF)
         patch_diff = None
         if diff_block and diff_block.strip() != "NO_PATCH":
             patch_diff = diff_block.strip() + "\n"
 
-        it = _normalize_iteration_json(
+        it = normalize_iteration_json(
             it, track=track, iteration=iteration, has_patch=bool(patch_diff)
         )
         return ProviderResult(
@@ -169,3 +100,40 @@ class GeminiCliProvider(Provider):
             patch_diff=patch_diff,
             meta={"provider": "gemini", "model": self.model},
         )
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Gemini Provider CLI")
+    parser.add_argument("--repo", required=True, help="Path to repo")
+    parser.add_argument("--track", required=True, help="Track name")
+    parser.add_argument("--iteration", type=int, default=1, help="Iteration")
+    parser.add_argument("--role", default="debugger", help="Role")
+    parser.add_argument("--directions", default="", help="Directions text")
+    parser.add_argument("--context", default="", help="Context text")
+    parser.add_argument("--blackboard", default="", help="Blackboard text")
+    parser.add_argument("--model", default="gemini-3-pro", help="Gemini model")
+    args = parser.parse_args()
+
+    try:
+        provider = GeminiCliProvider(model=args.model)
+        res = provider.run_iteration(
+            repo=Path(args.repo),
+            track=args.track,
+            iteration=args.iteration,
+            role=args.role,
+            directions=args.directions,
+            context=args.context,
+            blackboard=args.blackboard,
+        )
+        print(json.dumps({
+            "text": res.text,
+            "iteration_json": res.iteration_json,
+            "patch_diff": res.patch_diff,
+            "meta": res.meta
+        }, indent=2, ensure_ascii=False))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

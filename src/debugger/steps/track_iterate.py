@@ -1,15 +1,17 @@
 """Track iteration step.
 
 CONTRACT
-- Per track, per iteration outputs (required):
+- Inputs: ArtifactStore, Repo path, track name, role, provider, iteration, directions profile, context, blackboard
+- Outputs (required):
   - tracks/<track>/iter_<NN>/ITERATION.json
   - tracks/<track>/iter_<NN>/ITERATION.txt
-- Optional:
+- Outputs (optional):
   - tracks/<track>/iter_<NN>/PATCH.diff
 - Invariants:
-  - ITERATION.json schema_version=1 and required fields exist
-- Disqualification:
-  - missing ITERATION.json or invalid schema => exit 2 on check
+  - ITERATION.json follows IterationEnvelope schema (schema_version=1)
+  - Retries on provider checks are NOT handled here (handled by Policy/Orchestrator)
+- Failure:
+  - check() returns 2 if ITERATION.json is missing or invalid
 """
 
 from __future__ import annotations
@@ -82,9 +84,11 @@ class TrackIterate:
         # Redact text outputs defensively.
         (iter_dir / "ITERATION.txt").write_text(self.redactor.redact(result.text), encoding="utf-8")
 
-        (iter_dir / "ITERATION.json").write_text(
-            json.dumps(result.iteration_json, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
+        # Task 4.6: Redact ITERATION.json content
+        # We redact the JSON string to catch secrets in values 
+        # (simpler than traversing dict)
+        json_str = json.dumps(result.iteration_json, indent=2, ensure_ascii=False)
+        (iter_dir / "ITERATION.json").write_text(self.redactor.redact(json_str) + "\n", encoding="utf-8")
 
         if result.patch_diff:
             (iter_dir / "PATCH.diff").write_text(result.patch_diff, encoding="utf-8")
@@ -121,3 +125,39 @@ class TrackIterate:
         }
         store.write_json(f"tracks/{track}/iter_{iteration:02d}/CHECK_iterate.json", out)
         return exit_code
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    from ..providers.manual import ManualProvider
+
+    parser = argparse.ArgumentParser(description="Track Iterate Step (Manual Provider)")
+    parser.add_argument("--repo", required=True, help="Path to repo")
+    parser.add_argument("--track", required=True, help="Track name")
+    parser.add_argument("--role", default="debugger", help="Role name")
+    parser.add_argument("--iteration", type=int, default=1, help="Iteration number")
+    parser.add_argument("--profile", required=True, help="Directions profile name")
+    parser.add_argument("--context", default="", help="Context text")
+    parser.add_argument("--blackboard", default="", help="Blackboard text")
+    parser.add_argument("--out-dir", required=True, help="Output directory for artifacts")
+    args = parser.parse_args()
+
+    try:
+        store = ArtifactStore(Path(args.out_dir))
+        step = TrackIterate()
+        step.run(
+            store=store,
+            repo=Path(args.repo),
+            track=args.track,
+            role=args.role,
+            provider=ManualProvider(),
+            iteration=args.iteration,
+            directions_profile=args.profile,
+            context_text=args.context,
+            blackboard_text=args.blackboard,
+        )
+        sys.exit(step.check(store, Path(args.repo), args.track, args.iteration))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

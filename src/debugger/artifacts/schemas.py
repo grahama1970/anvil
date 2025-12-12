@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+"""Artifact schemas.
+
+CONTRACT
+- Inputs: Pydantic models
+- Outputs:
+  - Validated JSON-serializable objects
+- Invariants:
+  - Defines the shape of all core artifacts (RUN.json, ITERATION.json, etc.)
+  - All schemas have schema_version int field
+- Failure:
+  - Raises ValidationError on schema mismatch
+"""
+
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field

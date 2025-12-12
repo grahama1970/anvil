@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+"""Environment health checks.
+
+CONTRACT
+- Inputs: Repo path
+- Outputs (required):
+  - DoctorReport (ok=bool, items=[(name, status, details)])
+- Invariants:
+  - Checks: git repo, git binary, docker, ripgrep, gh cli, copilot cli, gemini cli
+  - Does not modify system state (read-only checks)
+- Failure:
+  - Returns DoctorReport with ok=False if critical checks fail (git repo, git binary)
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 

@@ -12,35 +12,26 @@ A **no-vibes** debugging and hardening harness:
 The project is designed to be **imported via `file:///`** into other repos (Sparta, extractor, memory) and run
 either from a human terminal or by an orchestrator agent.
 
-## Quickstart (this repo)
+## Documentation
+
+- [**Quickstart Guide**](QUICKSTART.md): Get up and runnning in 5 minutes.
+- [**Contributing Guide**](CONTRIBUTING.md): How to develop and extend Anvil.
+
+## Installation
 
 ```bash
-uv venv --python=3.11.12 .venv
-uv sync
-uv run dbg --help
+# Clone and install
+git clone https://github.com/google-deepmind/anvil.git
+cd anvil
+pip install -e .
 ```
 
-## Quickstart (use inside another repo)
-
-From your target repo (must be a git repo):
-
-```bash
-uv add --editable /ABS/PATH/TO/debugger
-uv run dbg init
-uv run dbg debug run --issue "Title: Example\n\nBody:\nSteps...\nExpected...\nActual..."
-```
-
-Or:
-
-```bash
-uv run dbg debug run --issue-file issue.md
-```
-
-Artifacts are written under `.dbg/runs/<run_id>/`.
+For detailed usage, see the [Quickstart Guide](QUICKSTART.md).
 
 ## “No vibes” enforcement
 
 A track is **DISQUALIFIED** if it:
+
 - violates a contract (missing/invalid required artifacts, schema drift),
 - claims work without artifacts,
 - or fails to run required `check` gates.

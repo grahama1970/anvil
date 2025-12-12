@@ -1,14 +1,18 @@
 """Verification step.
 
 CONTRACT
-- Reads verify contract from:
-  - <repo>/.dbg/verify_contract.yaml if present
-- Writes (required):
+- Inputs: ArtifactStore, Repo path, .dbg/verify_contract.yaml
+- Outputs (required):
   - VERIFY.md
+  - logs/verify.commands.json
+- Outputs (optional):
   - logs/verify.<name>.stdout.log
   - logs/verify.<name>.stderr.log
-  - logs/verify.commands.json
-- Success requires all commands marked required=true to exit 0.
+- Invariants:
+  - Runs all commands in valid YAML contract
+  - Records pass/fail status in VERIFY.md
+- Failure:
+  - check() returns 2 if VERIFY.md or command logs missing
 """
 
 from __future__ import annotations
@@ -56,7 +60,16 @@ class Verify:
                 stderr_path=store.path("logs", f"verify.{safe_name}.stderr.log"),
                 timeout_s=600,
             )
-            ran.append({"name": name, "cmd": cmd, "required": required, "exit": res.returncode})
+            # Task 4.10: Capture duration and bytes
+            ran.append({
+                "name": name, 
+                "cmd": cmd, 
+                "required": required, 
+                "exit": res.returncode,
+                "elapsed_s": res.elapsed_s,
+                "stdout_bytes": res.stdout_bytes,
+                "stderr_bytes": res.stderr_bytes,
+            })
             if required and res.returncode != 0:
                 failures.append(name)
 
@@ -84,4 +97,22 @@ class Verify:
     def check(self, store: ArtifactStore, repo: Path) -> int:
         res = check_required_artifacts(store.run_dir, ["VERIFY.md", "logs/verify.commands.json"])
         store.write_json("CHECK_verify.json", res.model_dump())
-        return res.exit_code
+        return 0 if res.ok else 1
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Verify Step")
+    parser.add_argument("--repo", required=True, help="Path to repo")
+    parser.add_argument("--out-dir", required=True, help="Output directory for artifacts")
+    args = parser.parse_args()
+
+    try:
+        store = ArtifactStore(Path(args.out_dir))
+        step = Verify()
+        step.run(store, Path(args.repo))
+        sys.exit(step.check(store, Path(args.repo)))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

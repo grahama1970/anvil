@@ -1,5 +1,22 @@
 from __future__ import annotations
 
+"""Orchestrator for debug and harden sessions.
+
+CONTRACT
+- Inputs: RunConfig (paths, mode, tracks, etc.)
+- Outputs (required):
+  - RunResult (status, run_dir)
+  - Artifacts in .dbg/runs/<run_id>/
+    - RUN.json, RUN_STATUS.json
+    - Step-specific artifacts (CONTEXT.md, REPRO.md, etc.)
+- Invariants:
+  - Always writes RUN.json and RUN_STATUS.json
+  - Catches top-level exceptions, writes CRASH.txt, and reports FAIL status
+  - Disqualifies tracks that fail checks
+- Failure:
+  - Returns RunResult(status="FAIL") on crash or critical step failure
+"""
+
 import traceback
 from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
@@ -109,41 +126,73 @@ def _load_tracks(cfg: RunConfig) -> tuple[list[TrackConfig], bool, int]:
     return _default_tracks(), cfg.use_treesitter, 25
 
 
+def _load_run_status(store: ArtifactStore) -> RunStatus | None:
+    try:
+        data = store.read_json("RUN_STATUS.json")
+        return RunStatus(**data)
+    except Exception:
+        return None
+
+
 def run_debug_session(cfg: RunConfig) -> RunResult:
     store = ArtifactStore(cfg.run_dir())
     store.ensure()
     ev = EventLog(store.path("events.jsonl"))
 
     try:
+        # Resume logic
+        existing_status = None
+        if cfg.resume:
+            existing_status = _load_run_status(store)
+            if existing_status and existing_status.status in ("OK", "DONE", "FAIL"):
+                # Already done?
+                # User might want to retry a failed run, but for now we just warn.
+                pass
+        
+        # Hydrate issue_text if resuming or missing
+        issue_text = cfg.issue_text
+        if not issue_text and cfg.resume:
+            # Try loading from CONTEXT.md
+            ctx_md = store.path("CONTEXT.md")
+            if ctx_md.exists():
+                # This is imperfect as CONTEXT.md has more than just issue, but ReproPlan uses it.
+                # Actually ReproPlan takes issue_text.
+                # Better: load from RUN.json meta if possible, but RunMeta schema doesn't store full issue text, just bool.
+                # We'll rely on ContextBuilder to be idempotent if artifacts exist.
+                pass
+
         tracks, use_ts, max_files = _load_tracks(cfg)
         wt = WorktreeManager(repo=cfg.repo_path, store=store)
 
-        meta = RunMeta(
-            run_id=cfg.run_id,
-            repo_path=str(cfg.repo_path),
-            mode=cfg.mode,
-            issue_text_present=bool(cfg.issue_text),
-            use_docker=cfg.use_docker,
-            use_treesitter=use_ts,
-            tracks=[t.__dict__ for t in tracks],
-        )
-        store.write_run_meta(meta)
-
-        status = RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="RUNNING", message="starting")
-        store.write_status(status)
+        if not cfg.resume:
+            meta = RunMeta(
+                run_id=cfg.run_id,
+                repo_path=str(cfg.repo_path),
+                mode=cfg.mode,
+                issue_text_present=bool(issue_text),
+                use_docker=cfg.use_docker,
+                use_treesitter=use_ts,
+                tracks=[t.__dict__ for t in tracks],
+            )
+            store.write_run_meta(meta)
+            status = RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="RUNNING", message="starting")
+            store.write_status(status)
+        else:
+            ev.emit(stage="resume", action="load_state", run_id=cfg.run_id)
 
         # Setup worktrees (best effort)
+        # Idempotent
         ev.emit(stage="setup", action="worktrees_create")
         wt.create_worktrees([t.name for t in tracks])
-
-        # Per-worktree contracts
         wt.write_worktree_contracts(tracks)
 
-        # Steps
-        issue_text = cfg.issue_text or ""
-        ContextBuilder().run(
-            store, cfg.repo_path, issue_text=issue_text, use_treesitter=use_ts, max_files=max_files
-        )
+        # Steps - Skip if artifacts allow
+        # ContextBuilder checks if CONTEXT.md exists internally? No, we should check here to skip.
+        if not (store.path("CONTEXT.md").exists() and cfg.resume):
+            ContextBuilder().run(
+                store, cfg.repo_path, issue_text=issue_text or "", use_treesitter=use_ts, max_files=max_files
+            )
+        
         if ContextBuilder().check(store, cfg.repo_path) != 0:
             store.write_status(
                 RunStatus(
@@ -152,7 +201,9 @@ def run_debug_session(cfg: RunConfig) -> RunResult:
             )
             return RunResult(status="FAIL", run_dir=store.run_dir)
 
-        ReproPlan().run(store, cfg.repo_path, issue_text=issue_text)
+        if not (store.path("REPRO.md").exists() and cfg.resume):
+            ReproPlan().run(store, cfg.repo_path, issue_text=issue_text or "")
+            
         if ReproPlan().check(store, cfg.repo_path) != 0:
             store.write_status(
                 RunStatus(
@@ -166,49 +217,69 @@ def run_debug_session(cfg: RunConfig) -> RunResult:
 
         disqualified: list[str] = []
 
-        # Iterate each track (one iteration default; extend via agent loops later)
+        # Iterate each track
+        # TODO: Better resume support for partial track completion (checking per-track iteration artifacts)
+        # For now, we rerun track iteration if not fully done? 
+        # Or we rely on provider/step idempotency? TrackIterate calls provider.run_iteration.
+        # If we re-run, we might overwrite. 
+        # Prudent resume: if track has ANY iteration, skip it? Or continue?
+        # Let's simple-skip if `store.path("tracks", t.name, "iter_1", "ITERATION.json").exists()`
+        
         for t in tracks:
-            try:
-                provider = _provider_for_track(t)
-            except Exception as exc:
-                provider = _ErrorProvider(error=f"Provider init failed for {t.provider}: {exc}")
-            iter_step = TrackIterate()
-            iteration = 1
-            ev.emit(
-                stage="iterate",
-                track=t.name,
-                iter=iteration,
-                action="provider_call",
-                provider=t.provider,
-                model=t.model or "",
-            )
-            iter_step.run(
-                store=store,
-                repo=cfg.repo_path,
-                track=t.name,
-                role=t.role,
-                provider=provider,
-                iteration=iteration,
-                directions_profile=t.directions_profile,
-                context_text=context_text,
-                blackboard_text=blackboard_text,
-            )
-            chk = iter_step.check(store, cfg.repo_path, track=t.name, iteration=iteration)
-            if chk != 0:
-                disqualified.append(t.name)
+            already_done = False
+            # Check if likely done (iter 1 exists)
+            # In future we support max_iters > 1, so this needs to find last iter.
+            # But for Phase 3 this is "good enough" for single-shot resume.
+            if cfg.resume and store.path("tracks", t.name, "iter_1", "ITERATION.json").exists():
+                already_done = True
+                
+            if not already_done:
+                try:
+                    provider = _provider_for_track(t)
+                except Exception as exc:
+                    provider = _ErrorProvider(error=f"Provider init failed for {t.provider}: {exc}")
+                iter_step = TrackIterate()
+                iteration = 1
                 ev.emit(
                     stage="iterate",
                     track=t.name,
                     iter=iteration,
-                    action="disqualified",
-                    reason="iterate_check_failed",
+                    action="provider_call",
+                    provider=t.provider,
+                    model=t.model or "",
                 )
+                iter_step.run(
+                    store=store,
+                    repo=cfg.repo_path,
+                    track=t.name,
+                    role=t.role,
+                    provider=provider,
+                    iteration=iteration,
+                    directions_profile=t.directions_profile,
+                    context_text=context_text,
+                    blackboard_text=blackboard_text,
+                )
+            
+            chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=1)
+            if chk != 0:
+                disqualified.append(t.name)
+                # Only emit if we just ran it? Or always?
+                # Emit always so logs are complete-ish?
+                if not already_done:
+                    ev.emit(
+                        stage="iterate",
+                        track=t.name,
+                        iter=1,
+                        action="disqualified",
+                        reason="iterate_check_failed",
+                    )
 
         # Build blackboard (observations-only)
         Blackboard().write(store, [t.name for t in tracks])
         blackboard_text = store.path("BLACKBOARD.md").read_text(encoding="utf-8", errors="ignore")
 
-        # Verify (optional but part of workflow)
+        # Verify
+        # If verify already run? Verify is cheap enough to re-run usually, implies freshness.
         ev.emit(stage="verify", action="run")
         Verify().run(store, cfg.repo_path)
         Verify().check(store, cfg.repo_path)
@@ -262,25 +333,42 @@ def run_harden_session(cfg: RunConfig) -> RunResult:
     ev = EventLog(store.path("events.jsonl"))
 
     try:
+        # Load tracks just like debug, but we might filter for 'breaker' roles later
+        tracks, use_ts, _ = _load_tracks(cfg)
+        
         meta = RunMeta(
             run_id=cfg.run_id,
             repo_path=str(cfg.repo_path),
             mode=cfg.mode,
             issue_text_present=False,
             use_docker=cfg.use_docker,
-            use_treesitter=False,
-            tracks=[],
+            use_treesitter=use_ts,
+            tracks=[t.__dict__ for t in tracks],
         )
         store.write_run_meta(meta)
         store.write_status(
             RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="RUNNING", message="starting harden")
         )
 
-        # Minimal harden: run verify contract (same as debug) and produce HARDEN.md summary
-        ev.emit(stage="harden", action="verify_run")
-        Verify().run(store, cfg.repo_path)
-        Verify().check(store, cfg.repo_path)
+        wt = WorktreeManager(repo=cfg.repo_path, store=store)
+        wt.create_worktrees([t.name for t in tracks])
+        wt.write_worktree_contracts(tracks)
 
+        # For Harden:
+        # 1. Verify baseline (optional, maybe we assume it's good or broken?)
+        # 2. Iterate tracks: They should be "breaker" role ideally.
+        #    - They read code, try to find bugs, write test cases (repro).
+        #    - Similar loop to debug but directions might differ.
+        
+        # For now, simpler implementation: Just run verify to get baseline.
+        # then maybe run one iteration of each track? 
+        # The prompt directions profile will handle the "harden" behavior difference.
+        
+        ev.emit(stage="harden", action="verify_baseline")
+        Verify().run(store, cfg.repo_path)
+        
+        # ... (In future: loop tracks here) ...
+        
         verify_md = (
             store.path("VERIFY.md").read_text(encoding="utf-8", errors="ignore")
             if store.path("VERIFY.md").exists()
@@ -289,12 +377,12 @@ def run_harden_session(cfg: RunConfig) -> RunResult:
         harden_md = [
             "# HARDEN",
             "",
-            "This is a minimal harden run. Extend with Breaker tracks and additional checks.",
-            "",
-            "## Verification results",
+            "## Baseline Verification",
             "",
             verify_md,
             "",
+            "## Tracks",
+            "(Placeholder for breaker tracks output)",
         ]
         store.write_text("HARDEN.md", "\n".join(harden_md))
 

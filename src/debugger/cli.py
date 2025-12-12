@@ -7,6 +7,18 @@ Two primary modes:
 Utilities:
 - dbg init
 - dbg doctor
+
+CONTRACT
+- Inputs: Command line arguments (parsed by Typer)
+- Outputs (required):
+  - Exit code 0 on success, non-zero on failure
+  - Console output (stdout/stderr) describing progress/results
+- Invariants:
+  - All commands validate their inputs (run_id, track_name) before execution
+  - Orchestrator actions are delegated to appropriate modules
+- Failure:
+  - Invalid arguments raise Typer exit/error
+  - Runtime errors are caught and printed by Typer or the orchestrator
 """
 
 from __future__ import annotations
@@ -29,6 +41,26 @@ debug_app = typer.Typer(add_completion=False, help="Debug an issue-like prompt."
 harden_app = typer.Typer(add_completion=False, help="Red-team/harden a repo or candidate patch.")
 app.add_typer(debug_app, name="debug")
 app.add_typer(harden_app, name="harden")
+
+def _version_callback(value: bool):
+    if value:
+        # Import dynamically to avoid circular deps if any
+        # Assuming version is stored in package init or accessible
+        # For now, hardcode or read from pyproject.toml in real app.
+        try:
+            from .. import __version__
+        except ImportError:
+            __version__ = "0.1.0"
+        console.print(f"dbg version: {__version__}")
+        raise typer.Exit()
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False, "--version", callback=_version_callback, is_eager=True, help="Show version."
+    )
+):
+    pass
 
 console = Console()
 
@@ -117,11 +149,12 @@ _CANDIDATE_TRACK_OPTION = typer.Option(
 @app.command()
 def init(
     repo: Path = _REPO_OPTION,
+    force: bool = typer.Option(False, "--force", help="Overwrite existing templates."),
 ) -> None:
     """Write `.dbg/` templates into a target repo."""
     from .init import write_templates
 
-    write_templates(repo)
+    write_templates(repo, force=force)
     console.print(f"[green]Wrote templates to[/green] {repo / '.dbg'}")
 
 
@@ -263,3 +296,7 @@ def harden_status(
     if not status_path.exists():
         raise typer.BadParameter(f"No status found: {status_path}")
     console.print_json(status_path.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    app()

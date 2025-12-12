@@ -1,12 +1,13 @@
-"""GitHub CLI provider (optional).
+"""GitHub CLI provider (stub).
 
 CONTRACT
-- Uses `gh` to obtain a model response.
-- Must return a valid IterationEnvelope-like JSON object (schema_version=1).
-- If `gh` is not available, raise RuntimeError early.
-
-NOTE: This is a minimal adapter meant for iteration by a project agent.
-You will likely customize the actual `gh` subcommands based on your environment.
+- Inputs: Repo, track, iteration
+- Outputs:
+  - Raises RuntimeError (stub implementation)
+- Invariants:
+  - Checks for `gh` CLI presence before raising stub error
+- Failure:
+  - Always fails with RuntimeError (instruction to customize)
 """
 
 from __future__ import annotations

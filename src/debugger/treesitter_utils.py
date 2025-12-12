@@ -1,10 +1,14 @@
 """Tree-sitter utilities (optional).
 
 CONTRACT
-- If tree-sitter deps are missing, functions return empty results and do not raise.
-- If deps exist, functions return symbol outlines for supported languages.
-
-This module is optional and enabled via config/flags.
+- Inputs: File path
+- Outputs (optional):
+  - List of symbol dictionaries (kind, name, start_line, end_line)
+- Invariants:
+  - If tree-sitter deps missing, returns empty list (no crash)
+  - Supports .py, .js, .ts, .tsx, .jsx
+- Failure:
+  - Returns empty list on any parse error or missing dependency
 """
 
 from __future__ import annotations
@@ -137,3 +141,20 @@ def outline_symbols(path: Path) -> list[dict[str, Any]]:
             stack.append(ch)
 
     return [s.__dict__ for s in symbols]
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    import sys
+
+    parser = argparse.ArgumentParser(description="Tree-sitter Utils CLI")
+    parser.add_argument("--file", required=True, help="Path to file")
+    args = parser.parse_args()
+
+    try:
+        symbols = outline_symbols(Path(args.file))
+        print(json.dumps(symbols, indent=2))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

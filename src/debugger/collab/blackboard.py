@@ -9,7 +9,19 @@ from ..artifacts.store import ArtifactStore
 
 @dataclass
 class Blackboard:
-    """Observations-only blackboard builder."""
+    """Observations-only blackboard builder.
+
+    CONTRACT
+    - Inputs: ArtifactStore, list of tracks
+    - Outputs (required):
+      - BLACKBOARD.md
+      - BLACKBOARD.json (observations only)
+    - Invariants:
+      - Reads latest ITERATION.json for each track
+      - Extracts only public observations (status, hypothesis, experiments, risks)
+    - Failure:
+      - Skips tracks with missing/invalid artifacts (best-effort)
+    """
 
     def build(self, store: ArtifactStore, tracks: list[str]) -> dict[str, Any]:
         obs: dict[str, Any] = {"schema_version": 1, "tracks": {}}
@@ -53,3 +65,23 @@ class Blackboard:
                 md.append(f"- {r}")
             md.append("")
         store.write_text("BLACKBOARD.md", "\n".join(md))
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Blackboard CLI")
+    parser.add_argument("--run-dir", required=True, help="Path to run directory")
+    parser.add_argument("--tracks", nargs="+", required=True, help="List of tracks")
+    # Note: Using simpler CLI that assumes store/files exist
+    args = parser.parse_args()
+
+    try:
+        store = ArtifactStore(Path(args.run_dir))
+        bb = Blackboard()
+        bb.write(store, args.tracks)
+        print("Generated BLACKBOARD.md and BLACKBOARD.json")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

@@ -1,11 +1,13 @@
 """Repro plan step.
 
 CONTRACT
+- Inputs: ArtifactStore, Repo path, issue_text
 - Outputs (required):
   - REPRO.md
-- Purpose:
-  - create a deterministic reproduction plan, or explicitly classify MANUAL/SEMI_AUTO.
-- check() fails if REPRO.md missing.
+- Invariants:
+  - Always writes REPRO.md with "Classification", "Commands", "Expected vs Actual" sections
+- Failure:
+  - check() returns non-zero if REPRO.md is missing
 """
 
 from __future__ import annotations
@@ -51,4 +53,23 @@ class ReproPlan:
     def check(self, store: ArtifactStore, repo: Path) -> int:
         res = check_required_artifacts(store.run_dir, ["REPRO.md"])
         store.write_json("CHECK_repro_plan.json", res.model_dump())
-        return res.exit_code
+        return 0 if res.ok else 1
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Repro Plan Step")
+    parser.add_argument("--repo", required=True, help="Path to repo")
+    parser.add_argument("--issue", required=True, help="Issue text")
+    parser.add_argument("--out-dir", required=True, help="Output directory for artifacts")
+    args = parser.parse_args()
+
+    try:
+        store = ArtifactStore(Path(args.out_dir))
+        step = ReproPlan()
+        step.run(store, Path(args.repo), args.issue)
+        sys.exit(step.check(store, Path(args.repo)))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

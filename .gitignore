@@ -11,3 +11,6 @@ build/
 .coverage
 coverage.xml
 .DS_Store
+
+anvil_greenscreen_full_resolution.png
+src_images/

@@ -10,6 +10,18 @@ from .schemas import RunMeta, RunStatus
 
 @dataclass(frozen=True)
 class ArtifactStore:
+    """Artifact storage manager.
+
+    CONTRACT
+    - Inputs: Run directory path
+    - Outputs:
+      - Writes files to .dbg/runs/<id>/...
+    - Invariants:
+      - Enforces path safety (prevents traversal outside run_dir)
+      - Ensures parent directories exist on write
+    - Failure:
+      - Raises ValueError on unsafe path access
+    """
     run_dir: Path
 
     def ensure(self) -> None:
@@ -53,3 +65,24 @@ class ArtifactStore:
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("a", encoding="utf-8") as f:
             f.write(line.rstrip() + "\n")
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Artifact Store CLI")
+    parser.add_argument("--run-dir", required=True, help="Path to run directory")
+    parser.add_argument("--ensure", action="store_true", help="Ensure directory exists")
+    args = parser.parse_args()
+
+    try:
+        store = ArtifactStore(Path(args.run_dir))
+        if args.ensure:
+            store.ensure()
+            print(f"Ensured {args.run_dir}")
+        else:
+            print("No action specified. Use --ensure.")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

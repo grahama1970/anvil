@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+"""Contract validation utilities.
+
+CONTRACT
+- Inputs: Run directory, list of required artifact names
+- Outputs (required):
+  - CheckResult (ok=bool, exit_code=int)
+- Invariants:
+  - Checks existence of all required files
+- Failure:
+  - Returns CheckResult(ok=False, exit_code=2) if any missing
+"""
+
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
