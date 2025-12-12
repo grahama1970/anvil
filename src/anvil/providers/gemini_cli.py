@@ -84,6 +84,7 @@ class GeminiCliProvider(Provider):
             stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=self.timeout_s)
         except asyncio.TimeoutError:
             process.kill()
+            await process.wait()
             raise RuntimeError(f"gemini timed out after {self.timeout_s}s")
 
         stdout_text = stdout_b.decode() if stdout_b else ""
@@ -131,9 +132,11 @@ if __name__ == "__main__":
     parser.add_argument("--model", default="gemini-3-pro", help="Gemini model")
     args = parser.parse_args()
 
-    try:
+    import asyncio
+    
+    async def main():
         provider = GeminiCliProvider(model=args.model)
-        res = provider.run_iteration(
+        res = await provider.run_iteration(
             repo=Path(args.repo),
             track=args.track,
             iteration=args.iteration,
@@ -148,6 +151,9 @@ if __name__ == "__main__":
             "patch_diff": res.patch_diff,
             "meta": res.meta
         }, indent=2, ensure_ascii=False))
+
+    try:
+        asyncio.run(main())
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

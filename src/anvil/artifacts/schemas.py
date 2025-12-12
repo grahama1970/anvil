@@ -47,7 +47,7 @@ class IterationEnvelope(BaseModel):
     schema_version: int = 1
     track: str
     iteration: int
-    status_signal: Literal["CONTINUE", "SKIP_TO_VERIFY", "READY_FOR_FIX", "NEEDS_MORE_WORK"]
+    status_signal: Literal["CONTINUE", "SKIP_TO_VERIFY", "READY_FOR_FIX", "NEEDS_MORE_WORK", "DONE"]
     hypothesis: str
     confidence: float = 0.0
     experiments: list[dict[str, Any]] = Field(default_factory=list)

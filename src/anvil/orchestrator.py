@@ -31,6 +31,7 @@ from .providers.base import Provider, ProviderResult
 from .providers.copilot_cli import CopilotCliProvider
 from .providers.gemini_cli import GeminiCliProvider
 from .providers.gh_cli import GhCliProvider
+from .providers.claude_cli import ClaudeCliProvider
 from .providers.manual import ManualProvider
 from .score.compute import ScoreComputer
 from .steps.apply import Apply
@@ -90,6 +91,9 @@ def _provider_for_track(t: TrackConfig) -> Provider:
         return GeminiCliProvider(**opts)
     if t.provider == "gh_cli":
         return GhCliProvider()
+    if t.provider == "claude":
+        opts = _filter_provider_kwargs(ClaudeCliProvider, t.provider_options)
+        return ClaudeCliProvider(**opts)
     raise ValueError(f"Unknown provider: {t.provider}")
 
 
@@ -248,70 +252,80 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
                 return
 
             try:
-                provider = _provider_for_track(t)
-            except Exception as exc:
-                provider = _ErrorProvider(error=f"Provider init failed for {t.provider}: {exc}")
-            
-            iter_step = TrackIterate()
-            
-            for iteration in range(current_iter, max_iters + 1):
-                ev.emit(
-                    stage="iterate",
-                    track=t.name,
-                    iter=iteration,
-                    action="provider_call",
-                    provider=t.provider,
-                    model=t.model or "",
-                )
+                try:
+                    provider = _provider_for_track(t)
+                except Exception as exc:
+                    provider = _ErrorProvider(error=f"Provider init failed for {t.provider}: {exc}")
                 
-                # Fetch fresh blackboard text (it might have been updated by other tracks if we added sync points)
-                # But for now, read fresh.
-                bb_path = store.path("BLACKBOARD.md")
-                current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
+                iter_step = TrackIterate()
                 
-                await iter_step.run(
-                    store=store,
-                    repo=cfg.repo_path,
-                    track=t.name,
-                    role=t.role,
-                    provider=provider,
-                    iteration=iteration,
-                    directions_profile=t.directions_profile,
-                    context_text=context_text,
-                    blackboard_text=current_bb,
-                )
-                
-                chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=iteration)
-                if chk != 0:
-                    disqualified.append(t.name)
+                for iteration in range(current_iter, max_iters + 1):
                     ev.emit(
                         stage="iterate",
                         track=t.name,
                         iter=iteration,
-                        action="disqualified",
-                        reason="iterate_check_failed",
+                        action="provider_call",
+                        provider=t.provider,
+                        model=t.model or "",
                     )
-                    break # Stop looping this track
-
-                # Check if provider is done
-                try:
-                    p_json = store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
-                    import json
-                    data = json.loads(p_json.read_text())
-                    signal = data.get("status_signal", "CONTINUE")
-                    if signal == "DONE":
-                        ev.emit(stage="iterate", track=t.name, iter=iteration, action="done")
-                        # Update blackboard one last time
-                        Blackboard().write(store, [tr.name for tr in tracks])
+                    
+                    bb_path = store.path("BLACKBOARD.md")
+                    current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
+                    
+                    await iter_step.run(
+                        store=store,
+                        repo=cfg.repo_path,
+                        track=t.name,
+                        role=t.role,
+                        provider=provider,
+                        iteration=iteration,
+                        directions_profile=t.directions_profile,
+                        context_text=context_text,
+                        blackboard_text=current_bb,
+                    )
+                    
+                    chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=iteration)
+                    if chk != 0:
+                        disqualified.append(t.name)
+                        ev.emit(
+                            stage="iterate",
+                            track=t.name,
+                            iter=iteration,
+                            action="disqualified",
+                            reason="iterate_check_failed",
+                        )
                         break
-                except Exception:
-                    pass # Should be caught by check() but just in case
-                
-                # Update blackboard for others to see our progress
-                Blackboard().write(store, [tr.name for tr in tracks])
+
+                    try:
+                        p_json = store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
+                        import json
+                        data = json.loads(p_json.read_text())
+                        signal = data.get("status_signal", "CONTINUE")
+                        if signal == "DONE":
+                            ev.emit(stage="iterate", track=t.name, iter=iteration, action="done")
+                            Blackboard().write(store, [tr.name for tr in tracks])
+                            break
+                    except Exception:
+                        pass
+                    
+                    Blackboard().write(store, [tr.name for tr in tracks])
+
+            except Exception as exc:
+                disqualified.append(t.name)
+                ev.emit(stage="iterate", track=t.name, action="crash", error=str(exc))
+                store.path("tracks", t.name).mkdir(parents=True, exist_ok=True)
+                store.write_text(
+                    store.path("tracks", t.name, "CRASH.txt"),
+                    traceback.format_exc(),
+                )
 
         # Run all tracks concurrently
-        await asyncio.gather(*[_process_track(t) for t in tracks])
+        results = await asyncio.gather(*[_process_track(t) for t in tracks], return_exceptions=True)
+        for t, r in zip(tracks, results):
+            if isinstance(r, Exception):
+                if t.name not in disqualified:
+                    disqualified.append(t.name)
+                ev.emit(stage="iterate", track=t.name, action="crash", error=str(r))
 
         # Build blackboard (observations-only)
         Blackboard().write(store, [t.name for t in tracks])

@@ -144,10 +144,12 @@ if __name__ == "__main__":
     parser.add_argument("--out-dir", required=True, help="Output directory for artifacts")
     args = parser.parse_args()
 
-    try:
+    import asyncio
+    
+    async def main():
         store = ArtifactStore(Path(args.out_dir))
         step = TrackIterate()
-        step.run(
+        await step.run(
             store=store,
             repo=Path(args.repo),
             track=args.track,
@@ -159,6 +161,9 @@ if __name__ == "__main__":
             blackboard_text=args.blackboard,
         )
         sys.exit(step.check(store, Path(args.repo), args.track, args.iteration))
+
+    try:
+        asyncio.run(main())
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

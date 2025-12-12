@@ -99,7 +99,7 @@ TRACKS_SCHEMA = {
                     "role": {"type": "string"},
                     "provider": {
                         "type": "string",
-                        "enum": ["manual", "copilot", "gemini", "gh_cli"]
+                        "enum": ["manual", "copilot", "gemini", "gh_cli", "claude"]
                     },
                     "model": {"type": ["string", "null"]},
                     "directions_profile": {"type": "string"},

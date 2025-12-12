@@ -71,7 +71,6 @@ class CopilotCliProvider(Provider):
         )
 
         args: list[str] = [
-            self.copilot_cmd,
             "--model",
             self.model,
             "--stream",
@@ -110,6 +109,7 @@ class CopilotCliProvider(Provider):
             stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=self.timeout_s)
         except asyncio.TimeoutError:
             process.kill()
+            await process.wait()
             raise RuntimeError(f"copilot timed out after {self.timeout_s}s")
 
         stdout_text = stdout_b.decode() if stdout_b else ""
@@ -157,9 +157,11 @@ if __name__ == "__main__":
     parser.add_argument("--model", default="gpt-5", help="Copilot model")
     args = parser.parse_args()
 
-    try:
+    import asyncio
+    
+    async def main():
         provider = CopilotCliProvider(model=args.model)
-        res = provider.run_iteration(
+        res = await provider.run_iteration(
             repo=Path(args.repo),
             track=args.track,
             iteration=args.iteration,
@@ -174,6 +176,9 @@ if __name__ == "__main__":
             "patch_diff": res.patch_diff,
             "meta": res.meta
         }, indent=2, ensure_ascii=False))
+
+    try:
+        asyncio.run(main())
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

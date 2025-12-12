@@ -9,13 +9,7 @@ from src.anvil.orchestrator import run_debug_session, RunConfig
 from src.anvil.artifacts.store import ArtifactStore
 from src.anvil.providers.base import Provider, ProviderResult
 
-class MockLoopProvider(Provider):
-    async def run_iteration(self, **kwargs) -> ProviderResult:
-        return ProviderResult(
-            text='{"status_signal": "CONTINUE", "thought": "looping"}',
-            prompt_file=Path("prompt.txt"),
-            response_file=Path("response.txt")
-        )
+
 
 class TestLoopLogic(unittest.TestCase):
     def setUp(self):
@@ -85,7 +79,19 @@ tracks:
                 # Write file
                 p = store.path("tracks", track, f"iter_{it:02d}", "ITERATION.json")
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text('{"status_signal": "CONTINUE"}')
+                full_json = {
+                    "schema_version": 1,
+                    "track": track,
+                    "iteration": it,
+                    "status_signal": "CONTINUE",
+                    "hypothesis": "test",
+                    "confidence": 0.5,
+                    "experiments": [],
+                    "proposed_changes": {},
+                    "risks": []
+                }
+                import json
+                p.write_text(json.dumps(full_json))
                 
             mock_ti.run.side_effect = side_effect_run
             
@@ -151,7 +157,19 @@ tracks:
                 p.parent.mkdir(parents=True, exist_ok=True)
                 # Iter 1: CONTINUE, Iter 2: DONE
                 signal = "CONTINUE" if iteration < 2 else "DONE"
-                p.write_text(f'{{"status_signal": "{signal}"}}')
+                full_json = {
+                    "schema_version": 1,
+                    "track": track,
+                    "iteration": iteration,
+                    "status_signal": signal,
+                    "hypothesis": "test",
+                    "confidence": 0.5,
+                    "experiments": [],
+                    "proposed_changes": {},
+                    "risks": []
+                }
+                import json
+                p.write_text(json.dumps(full_json))
 
             mock_ti.run.side_effect = side_effect_run
 
