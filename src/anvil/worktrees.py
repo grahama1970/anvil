@@ -107,6 +107,75 @@ class WorktreeManager:
             ]
             (wt_dir / "CONTRACT.md").write_text("\n".join(contract), encoding="utf-8")
 
+    def cleanup(self, tracks: list[str], archive: bool = False) -> None:
+        """Remove worktrees and optionally archive branches.
+        
+        If archive=True, renames branches to archive/anvil-{run_id}-{track}-{timestamp}
+        instead of deleting them.
+        """
+        if not self._is_git_repo():
+            logger.warning("Repo is not a git repo; skipping cleanup.")
+            return
+
+        root = self._worktrees_root()
+        
+        for t in tracks:
+            wt_dir = root / t
+            branch = f"dbg/{self.store.run_dir.name}/{t}"
+            
+            # Remove worktree first
+            if wt_dir.exists():
+                cmd = f'git worktree remove --force "{wt_dir}"'
+                res = run_cmd(cmd, cwd=self.repo, timeout_s=30)
+                if res.returncode != 0:
+                    logger.warning(f"Failed to remove worktree {t}")
+            
+            # Archive or delete branch
+            if archive:
+                self._archive_branch(branch, t)
+            else:
+                # Delete branch
+                cmd = f'git branch -D "{branch}"'
+                run_cmd(cmd, cwd=self.repo, timeout_s=10)
+        
+        # Try to remove the worktrees root if empty
+        if root.exists():
+            try:
+                root.rmdir()
+            except OSError:
+                pass  # Not empty, that's fine
+
+    def _archive_branch(self, branch: str, track: str) -> None:
+        """Rename a branch to archive/anvil-{run_id}-{track}-{timestamp}."""
+        from datetime import datetime
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_name = f"archive/anvil-{self.store.run_dir.name}-{track}-{timestamp}"
+        
+        # Check if branch exists
+        check = run_cmd(f'git branch --list "{branch}"', cwd=self.repo, timeout_s=5)
+        if check.stdout_path and check.stdout_path.exists():
+            output = check.stdout_path.read_text().strip()
+            if not output:
+                logger.debug(f"Branch {branch} doesn't exist, nothing to archive")
+                return
+        
+        # Rename branch
+        cmd = f'git branch -m "{branch}" "{archive_name}"'
+        res = run_cmd(cmd, cwd=self.repo, timeout_s=10)
+        if res.returncode == 0:
+            logger.info(f"Archived branch {branch} -> {archive_name}")
+        else:
+            logger.warning(f"Failed to archive branch {branch}")
+
+    def list_archived_branches(self) -> list[str]:
+        """List all archived debug branches."""
+        res = run_cmd("git branch --list 'archive/anvil-*'", cwd=self.repo, timeout_s=5)
+        if res.stdout_path and res.stdout_path.exists():
+            output = res.stdout_path.read_text()
+            return [b.strip().lstrip("* ") for b in output.splitlines() if b.strip()]
+        return []
+
 
 if __name__ == "__main__":
     import argparse

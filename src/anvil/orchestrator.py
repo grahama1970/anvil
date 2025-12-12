@@ -37,6 +37,7 @@ from .score.compute import ScoreComputer
 from .steps.apply import Apply
 from .steps.context_builder import ContextBuilder
 from .steps.judge import Judge
+from .steps.repro_assess import ReproAssess
 from .steps.repro_plan import ReproPlan
 from .steps.track_iterate import TrackIterate
 from .steps.verify import Verify
@@ -206,6 +207,22 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
                 )
             )
             return RunResult(status="FAIL", run_dir=store.run_dir)
+
+        # Repro Assessment (Track 0 - determine reproduction strategy)
+        repro_mode = "MANUAL"  # default
+        if not (store.path("REPRO_ASSESS.json").exists() and cfg.resume):
+            ev.emit(stage="repro_assess", action="run")
+            repro_result = ReproAssess().run(store, cfg.repo_path, issue_text=issue_text)
+            repro_mode = repro_result.mode.value
+            ev.emit(stage="repro_assess", action="done", mode=repro_mode)
+        else:
+            # Read from existing
+            try:
+                import json
+                data = json.loads(store.path("REPRO_ASSESS.json").read_text())
+                repro_mode = data.get("repro_mode", "MANUAL")
+            except Exception:
+                pass
 
         if not (store.path("REPRO.md").exists() and cfg.resume):
             ReproPlan().run(store, cfg.repo_path, issue_text=issue_text or "")

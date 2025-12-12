@@ -29,6 +29,7 @@ async def _async_run_parallel(tmp_path):
         with patch("anvil.orchestrator.WorktreeManager") as MockWT, \
              patch("anvil.orchestrator.Verify") as MockVerify, \
              patch("anvil.orchestrator.ReproPlan") as MockReproPlan, \
+             patch("anvil.orchestrator.ReproAssess") as MockReproAssess, \
              patch("anvil.orchestrator.ContextBuilder") as MockCTX, \
              patch("anvil.orchestrator.Judge") as MockJudge, \
              patch("anvil.orchestrator.load_tracks_file") as MockLoadTracks, \
@@ -37,6 +38,11 @@ async def _async_run_parallel(tmp_path):
             # Configure mocks to pass checks
             MockCTX.return_value.check.return_value = 0
             MockReproPlan.return_value.check.return_value = 0
+            # Mock ReproAssess to return a valid result
+            from anvil.steps.repro_assess import ReproMode, ReproAssessment
+            MockReproAssess.return_value.run.return_value = ReproAssessment(
+                mode=ReproMode.AUTO, strategy="test", commands=["pytest"], confidence=0.8, details=""
+            )
             
             # Setup mocked tracks
             from anvil.config import TracksFileConfig

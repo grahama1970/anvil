@@ -1,0 +1,13 @@
+tracks:
+  - name: breaker_gpt5
+    role: breaker
+    provider: copilot
+    model: gpt-5
+    budgets:
+      max_iters: 2
+  - name: breaker_claude
+    role: breaker
+    provider: copilot
+    model: claude-sonnet
+    budgets:
+      max_iters: 2
