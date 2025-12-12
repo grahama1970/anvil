@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  anvil:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: anvil:latest
+    container_name: anvil-debugger
+    
+    # Mount target repository and artifacts directory
+    volumes:
+      # Mount the repository you want to debug (replace with actual path)
+      - ./example-repo:/repo
+      # Persist artifacts on host
+      - ./example-repo/.dbg:/repo/.dbg
+    
+    # Working directory inside container
+    working_dir: /repo
+    
+    # Environment variables (optional)
+    environment:
+      # Uncomment and set if using Gemini provider
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Uncomment and set if using GitHub Copilot
+      # - GITHUB_TOKEN=${GITHUB_TOKEN}
+      
+    # Override entrypoint for interactive use
+    # entrypoint: /bin/bash
+    
+    # Example command - customize as needed
+    command: ["init"]
+    
+    # Useful for debugging
+    # stdin_open: true
+    # tty: true
+
+# Example usage:
+# 1. Build: docker-compose build
+# 2. Init:  docker-compose run --rm anvil init
+# 3. Run:   docker-compose run --rm anvil debug run --issue "Bug description"
+# 4. Status: docker-compose run --rm anvil debug status --run <run-id>

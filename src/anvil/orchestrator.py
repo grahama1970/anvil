@@ -281,7 +281,7 @@ def run_debug_session(cfg: RunConfig) -> RunResult:
         # Verify
         # If verify already run? Verify is cheap enough to re-run usually, implies freshness.
         ev.emit(stage="verify", action="run")
-        Verify().run(store, cfg.repo_path)
+        Verify().run(store, cfg.repo_path, use_docker=cfg.use_docker)
         Verify().check(store, cfg.repo_path)
 
         # Score (artifact-backed)
@@ -365,7 +365,7 @@ def run_harden_session(cfg: RunConfig) -> RunResult:
         # The prompt directions profile will handle the "harden" behavior difference.
         
         ev.emit(stage="harden", action="verify_baseline")
-        Verify().run(store, cfg.repo_path)
+        Verify().run(store, cfg.repo_path, use_docker=cfg.use_docker)
         
         # ... (In future: loop tracks here) ...
         

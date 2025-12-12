@@ -2,7 +2,7 @@ import pytest
 import sys
 import os
 from pathlib import Path
-from src.debugger.util.shell import run_cmd, CmdResult
+from src.anvil.util.shell import run_cmd, CmdResult
 
 def test_run_cmd_success(tmp_path):
     stdout = tmp_path / "out.log"

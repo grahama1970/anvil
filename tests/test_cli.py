@@ -1,6 +1,6 @@
 import pytest
 from typer.testing import CliRunner
-from src.debugger.cli import app
+from src.anvil.cli import app
 
 runner = CliRunner()
 

@@ -1,4 +1,4 @@
-# debugger
+# Anvil
 
 <p align="center">
   <img src="anvil.png" alt="Anvil logo" width="400" />
@@ -6,8 +6,8 @@
 
 A **no-vibes** debugging and hardening harness:
 
-- **`dbg debug`**: issue-like prompt ➜ context ➜ repro plan ➜ multi-track worktrees ➜ verify ➜ judge ➜ apply
-- **`dbg harden`**: red-team a repo or a candidate patch (break it, find inefficiencies/risks, add tests)
+- **`anvil debug`**: issue-like prompt ➜ context ➜ repro plan ➜ multi-track worktrees ➜ verify ➜ judge ➜ apply
+- **`anvil harden`**: red-team a repo or a candidate patch (break it, find inefficiencies/risks, add tests)
 
 The project is designed to be **imported via `file:///`** into other repos (Sparta, extractor, memory) and run
 either from a human terminal or by an orchestrator agent.
@@ -16,6 +16,7 @@ either from a human terminal or by an orchestrator agent.
 
 - [**Quickstart Guide**](QUICKSTART.md): Get up and runnning in 5 minutes.
 - [**Contributing Guide**](CONTRIBUTING.md): How to develop and extend Anvil.
+- [**System Contract**](docs/CONTRACT.md): The "No Vibes" guarantee.
 
 ## Installation
 
@@ -27,6 +28,8 @@ pip install -e .
 ```
 
 For detailed usage, see the [Quickstart Guide](QUICKSTART.md).
+
+**Docker mode available**: Use `--docker` flag for containerized verify execution (see [Quickstart](QUICKSTART.md#docker-mode-recommended-for-isolation)).
 
 ## “No vibes” enforcement
 
@@ -86,16 +89,18 @@ uv sync --group ast
 
 ### Debug
 
-- `dbg debug run ...`
-- `dbg debug status --run <id>`
-- `dbg debug resume --run <id>`
+- `anvil debug run ...`
+- `anvil debug status --run <id>`
+- `anvil debug resume --run <id>`
 
 ### Harden
 
-- `dbg harden run ...`
-- `dbg harden status --run <id>`
+- `anvil harden run ...`
+- `anvil harden status --run <id>`
 
 ### Utilities
 
-- `dbg init` (writes `.dbg/` templates in the target repo)
-- `dbg doctor` (checks git, docker, provider auth, verify commands)
+- `anvil init` (writes `.dbg/` templates in the target repo)
+- `anvil doctor` (checks git, docker, provider auth, verify commands)
+
+Both `anvil` and `dbg` commands work (legacy alias supported).

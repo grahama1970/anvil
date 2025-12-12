@@ -84,7 +84,37 @@ Check the track output:
 cat .dbg/runs/latest/tracks/feature_fix/iter_01/ITERATION.txt
 ```
 
+## Docker Mode (Recommended for Isolation)
+
+For security and reproducibility, run verify commands in Docker containers:
+
+### Build the Image
+
+```bash
+docker build -t anvil:latest .
+```
+
+### Run with Docker Isolation
+
+```bash
+anvil debug run --issue "Bug description" --docker
+```
+
+The `--docker` flag runs all verify commands inside containers, isolating untrusted code execution.
+
+### Docker Compose (Alternative)
+
+```bash
+# Initialize
+docker-compose run --rm anvil init
+
+# Debug with mounted repo
+docker-compose run --rm anvil debug run --issue "Bug description"
+```
+
+Edit `docker-compose.yml` to mount your target repository.
+
 ## Next Steps
 
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) to learn how to add new providers.
-- Check `src/debugger/config.py` for advanced configuration options.
+- Check `src/anvil/config.py` for advanced configuration options.

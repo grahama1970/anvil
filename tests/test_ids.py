@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from src.debugger.util.ids import validate_run_id, validate_track_name, new_run_id
+from src.anvil.util.ids import validate_run_id, validate_track_name, new_run_id
 
 def test_validate_run_id_valid():
     # Valid UUIDs

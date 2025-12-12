@@ -110,6 +110,59 @@ def run_cmd(
         stderr_bytes=err_b,
     )
 
+
+def run_cmd_docker(
+    cmd: str,
+    cwd: Path,
+    stdout_path: Path | None = None,
+    stderr_path: Path | None = None,
+    env: dict[str, str] | None = None,
+    timeout_s: int | None = None,
+    image: str = "anvil:latest",
+) -> CmdResult:
+    """Run a command inside a Docker container with repository mounted.
+    
+    CONTRACT:
+    - Wraps command in `docker run` with volume mounts
+    - Mounts cwd to /repo in container
+    - Ensures artifacts directory (.dbg) is accessible from host
+    - Otherwise identical behavior to run_cmd()
+    """
+    # Construct docker run command
+    # Mount the cwd as /repo in the container
+    # Run the command in the mounted directory
+    docker_cmd = [
+        "docker", "run",
+        "--rm",  # Clean up container after execution
+        "-v", f"{cwd.absolute()}:/repo",  # Mount repo
+        "-w", "/repo",  # Set working directory
+    ]
+    
+    # Add environment variables if needed
+    if env:
+        for k, v in env.items():
+            docker_cmd.extend(["-e", f"{k}={v}"])
+    
+    # Specify image and command
+    docker_cmd.extend([
+        image,
+        "/bin/sh", "-c", cmd  # Execute command in shell
+    ])
+    
+    # Convert to single command string
+    full_cmd = " ".join(docker_cmd)
+    
+    # Use regular run_cmd to execute the docker command on the host
+    return run_cmd(
+        cmd=full_cmd,
+        cwd=cwd,  # Host cwd (not used since docker sets -w)
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        env=None,  # Already passed to docker
+        timeout_s=timeout_s,
+    )
+
+
 if __name__ == "__main__":
     import argparse
     import sys

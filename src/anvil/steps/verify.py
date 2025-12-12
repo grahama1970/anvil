@@ -39,7 +39,9 @@ class Verify:
             return yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         return {"schema_version": 1, "commands": []}
 
-    def run(self, store: ArtifactStore, repo: Path) -> None:
+    def run(self, store: ArtifactStore, repo: Path, use_docker: bool = False) -> None:
+        from ..util.shell import run_cmd_docker
+        
         contract = self._load_contract(repo)
         commands = contract.get("commands", []) or []
         ran: list[dict[str, Any]] = []
@@ -53,7 +55,10 @@ class Verify:
             if not cmd:
                 continue
 
-            res = run_cmd(
+            # Choose execution method based on use_docker flag
+            runner = run_cmd_docker if use_docker else run_cmd
+            
+            res = runner(
                 cmd=cmd,
                 cwd=repo,
                 stdout_path=store.path("logs", f"verify.{safe_name}.stdout.log"),

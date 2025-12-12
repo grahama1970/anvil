@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from src.debugger.artifacts.store import ArtifactStore
+from src.anvil.artifacts.store import ArtifactStore
 
 def test_store_path_ok(tmp_path):
     store = ArtifactStore(tmp_path / "runs")

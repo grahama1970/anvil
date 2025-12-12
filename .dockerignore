@@ -1,12 +1,45 @@
-.venv/
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
 *.egg-info/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.dbg/
 dist/
 build/
+.venv/
+venv/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
 .git/
-tests/
+.gitignore
+
+# Documentation (built docs)
+docs/_build/
+
+# Artifacts directory
+.dbg/
+
+# Development files
+REVIEW.md
+REVIEW_REQUEST.md
+TASKS.md
+.gemini/
+
+# OS
+.DS_Store
+Thumbs.db

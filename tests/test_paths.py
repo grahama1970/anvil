@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from src.debugger.util.paths import safe_filename, ensure_dir, copy_template
+from src.anvil.util.paths import safe_filename, ensure_dir, copy_template
 
 def test_safe_filename():
     assert safe_filename("foo") == "foo"

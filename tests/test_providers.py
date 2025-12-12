@@ -1,7 +1,7 @@
 import pytest
 import json
-from src.debugger.providers.common import extract_between, normalize_iteration_json, build_prompt
-from src.debugger.providers.base import ProviderResult
+from src.anvil.providers.common import extract_between, normalize_iteration_json, build_prompt
+from src.anvil.providers.base import ProviderResult
 
 def test_extract_between():
     text = "ignore START content END ignore"

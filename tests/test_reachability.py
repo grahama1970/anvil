@@ -4,7 +4,7 @@ import subprocess
 import sys
 import os
 from pathlib import Path
-from src.debugger.artifacts.store import ArtifactStore
+from src.anvil.artifacts.store import ArtifactStore
 
 def test_reachability_manual(tmp_path):
     """
@@ -58,7 +58,7 @@ tracks:
     """
     
     cmd = [
-        sys.executable, "-m", "src.debugger.cli", 
+        sys.executable, "-m", "src.anvil.cli", 
         "debug", "run",
         "--repo", str(repo),
         "--issue", "Fix the bug",

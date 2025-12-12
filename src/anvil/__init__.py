@@ -1,4 +1,4 @@
-"""debugger package."""
+"""anvil package."""
 
 from .config import RunConfig, TrackConfig
 from .orchestrator import run_debug_session, run_harden_session
