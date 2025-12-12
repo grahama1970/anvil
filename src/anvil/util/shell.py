@@ -14,6 +14,7 @@ CONTRACT
 """
 
 import os
+import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +40,7 @@ class CmdResult:
 
 
 def run_cmd(
-    cmd: str,
+    cmd: str | list[str],
     cwd: Path,
     stdout_path: Path | None = None,
     stderr_path: Path | None = None,
@@ -49,6 +50,7 @@ def run_cmd(
     """Run a shell command and store stdout/stderr to files.
 
     CONTRACT:
+    - Accepts cmd as str (run with shell=True) or list[str] (run with shell=False).
     - Always writes stdout/stderr files (creates temp if not provided).
     - Never raises for non-zero exit; caller inspects return code.
     - Records duration and output size.
@@ -69,6 +71,9 @@ def run_cmd(
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Determine shell mode: string -> True, list -> False
+    use_shell = isinstance(cmd, str)
+
     start_t = time.time()
     with (
         stdout_path.open("w", encoding="utf-8") as out_f,
@@ -78,7 +83,7 @@ def run_cmd(
             p = subprocess.run(
                 cmd,
                 cwd=str(cwd),
-                shell=True,
+                shell=use_shell,
                 env=(os.environ | env) if env else None,
                 stdout=out_f,
                 stderr=err_f,
@@ -101,7 +106,7 @@ def run_cmd(
     err_b = stderr_path.stat().st_size if stderr_path.exists() else 0
 
     return CmdResult(
-        cmd=cmd,
+        cmd=str(cmd),  # simplified for logs
         returncode=rc,
         stdout_path=stdout_path,
         stderr_path=stderr_path,
@@ -126,15 +131,17 @@ def run_cmd_docker(
     - Wraps command in `docker run` with volume mounts
     - Mounts cwd to /repo in container
     - Ensures artifacts directory (.dbg) is accessible from host
-    - Otherwise identical behavior to run_cmd()
+    - Uses safe list-based execution (shell=False) for Docker launch
+    - User command is passed to /bin/sh -c inside container (still potentially unsafe inside container, but avoids host injection)
     """
-    # Construct docker run command
-    # Mount the cwd as /repo in the container
-    # Run the command in the mounted directory
+    # Use resolve() to handle symlinks correctly for Docker mounts
+    abs_cwd = cwd.resolve()
+
+    # Construct docker run command as a list (safe)
     docker_cmd = [
         "docker", "run",
         "--rm",  # Clean up container after execution
-        "-v", f"{cwd.absolute()}:/repo",  # Mount repo
+        "-v", f"{abs_cwd}:/repo",  # Mount repo
         "-w", "/repo",  # Set working directory
     ]
     
@@ -144,17 +151,17 @@ def run_cmd_docker(
             docker_cmd.extend(["-e", f"{k}={v}"])
     
     # Specify image and command
+    # We use shlex.quote implicitly? No, subprocess handles list args safely.
+    # Inside the container, we run /bin/sh -c cmd. 
+    # 'cmd' is a string (the user command).
     docker_cmd.extend([
         image,
-        "/bin/sh", "-c", cmd  # Execute command in shell
+        "/bin/sh", "-c", cmd
     ])
     
-    # Convert to single command string
-    full_cmd = " ".join(docker_cmd)
-    
-    # Use regular run_cmd to execute the docker command on the host
+    # Pass LIST to run_cmd -> shell=False
     return run_cmd(
-        cmd=full_cmd,
+        cmd=docker_cmd,
         cwd=cwd,  # Host cwd (not used since docker sets -w)
         stdout_path=stdout_path,
         stderr_path=stderr_path,

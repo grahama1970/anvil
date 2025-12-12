@@ -69,7 +69,7 @@ tracks:
 
 ## Tree-sitter utilities (optional)
 
-If installed (`uv add debugger[treesitter]`), the context builder can optionally emit symbol outlines
+If installed (`uv add anvil[treesitter]`), the context builder can optionally emit symbol outlines
 for relevant files:
 
 - `SYMBOLS.json` (symbols with ranges)

@@ -1,16 +1,16 @@
 """Judge step (evidence-weighted, blind-ish).
 
 CONTRACT
-- Inputs: artifacts under tracks/* (ITERATION.json, PATCH.diff), VERIFY.md
+- Inputs: Run artifacts (ITERATION.json, VERIFY.md, PATCH.diff)
 - Outputs (required):
-  - SCORECARD.json
-  - DECISION.md
+  - SCORECARD.json (scores per track)
+  - DECISION.md (winner explanation)
 - Invariants:
-  - Disqualified tracks cannot win
-  - Winning track must have highest score
-  - Scores favor verified passes (+100) and patch presence (+10)
+  - Disqualified tracks cannot win.
+  - Scoring is hybrid: Confidence (provider self-report) + Evidence (Patch existence).
+  - Winner requires positive score (>0).
 - Failure:
-  - check() returns 2 if SCORECARD.json or DECISION.md missing
+  - Returns JudgeDecision with winner=None if no positive scores.
 """
 
 from __future__ import annotations
