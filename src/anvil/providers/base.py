@@ -27,7 +27,7 @@ class ProviderResult:
 
 
 class Provider(Protocol):
-    def run_iteration(
+    async def run_iteration(
         self,
         *,
         repo: Path,

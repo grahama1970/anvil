@@ -21,7 +21,7 @@ class ManualProvider(Provider):
       - None expected (offline)
     """
 
-    def run_iteration(
+    async def run_iteration(
         self,
         *,
         repo: Path,

@@ -17,6 +17,7 @@ CONTRACT
   - Returns RunResult(status="FAIL") on crash or critical step failure
 """
 
+import asyncio
 import traceback
 from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
@@ -96,7 +97,7 @@ def _provider_for_track(t: TrackConfig) -> Provider:
 class _ErrorProvider(Provider):
     error: str
 
-    def run_iteration(
+    async def run_iteration(
         self,
         *,
         repo: Path,
@@ -134,7 +135,7 @@ def _load_run_status(store: ArtifactStore) -> RunStatus | None:
         return None
 
 
-def run_debug_session(cfg: RunConfig) -> RunResult:
+async def run_debug_session(cfg: RunConfig) -> RunResult:
     store = ArtifactStore(cfg.run_dir())
     store.ensure()
     ev = EventLog(store.path("events.jsonl"))
@@ -225,21 +226,35 @@ def run_debug_session(cfg: RunConfig) -> RunResult:
         # Prudent resume: if track has ANY iteration, skip it? Or continue?
         # Let's simple-skip if `store.path("tracks", t.name, "iter_1", "ITERATION.json").exists()`
         
-        for t in tracks:
-            already_done = False
-            # Check if likely done (iter 1 exists)
-            # In future we support max_iters > 1, so this needs to find last iter.
-            # But for Phase 3 this is "good enough" for single-shot resume.
-            if cfg.resume and store.path("tracks", t.name, "iter_1", "ITERATION.json").exists():
-                already_done = True
-                
-            if not already_done:
-                try:
-                    provider = _provider_for_track(t)
-                except Exception as exc:
-                    provider = _ErrorProvider(error=f"Provider init failed for {t.provider}: {exc}")
-                iter_step = TrackIterate()
-                iteration = 1
+        async def _process_track(t: TrackConfig) -> None:
+            max_iters = t.budgets.max_iters
+            current_iter = 1
+            
+            # Resume logic: find last successfully completed iteration
+            # We look for the highest iter_N where ITERATION.json exists and is valid (check passed)
+            # Actually, simplistic check: look for highest iter_X dir with ITERATION.json
+            if cfg.resume:
+                # Find last completed
+                last_completed = 0
+                for i in range(1, max_iters + 1):
+                    p = store.path("tracks", t.name, f"iter_{i:02d}", "ITERATION.json")
+                    if p.exists():
+                        last_completed = i
+                    else:
+                        break
+                current_iter = last_completed + 1
+            
+            if current_iter > max_iters:
+                return
+
+            try:
+                provider = _provider_for_track(t)
+            except Exception as exc:
+                provider = _ErrorProvider(error=f"Provider init failed for {t.provider}: {exc}")
+            
+            iter_step = TrackIterate()
+            
+            for iteration in range(current_iter, max_iters + 1):
                 ev.emit(
                     stage="iterate",
                     track=t.name,
@@ -248,7 +263,13 @@ def run_debug_session(cfg: RunConfig) -> RunResult:
                     provider=t.provider,
                     model=t.model or "",
                 )
-                iter_step.run(
+                
+                # Fetch fresh blackboard text (it might have been updated by other tracks if we added sync points)
+                # But for now, read fresh.
+                bb_path = store.path("BLACKBOARD.md")
+                current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
+                
+                await iter_step.run(
                     store=store,
                     repo=cfg.repo_path,
                     track=t.name,
@@ -257,22 +278,40 @@ def run_debug_session(cfg: RunConfig) -> RunResult:
                     iteration=iteration,
                     directions_profile=t.directions_profile,
                     context_text=context_text,
-                    blackboard_text=blackboard_text,
+                    blackboard_text=current_bb,
                 )
-            
-            chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=1)
-            if chk != 0:
-                disqualified.append(t.name)
-                # Only emit if we just ran it? Or always?
-                # Emit always so logs are complete-ish?
-                if not already_done:
+                
+                chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=iteration)
+                if chk != 0:
+                    disqualified.append(t.name)
                     ev.emit(
                         stage="iterate",
                         track=t.name,
-                        iter=1,
+                        iter=iteration,
                         action="disqualified",
                         reason="iterate_check_failed",
                     )
+                    break # Stop looping this track
+
+                # Check if provider is done
+                try:
+                    p_json = store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
+                    import json
+                    data = json.loads(p_json.read_text())
+                    signal = data.get("status_signal", "CONTINUE")
+                    if signal == "DONE":
+                        ev.emit(stage="iterate", track=t.name, iter=iteration, action="done")
+                        # Update blackboard one last time
+                        Blackboard().write(store, [tr.name for tr in tracks])
+                        break
+                except Exception:
+                    pass # Should be caught by check() but just in case
+                
+                # Update blackboard for others to see our progress
+                Blackboard().write(store, [tr.name for tr in tracks])
+
+        # Run all tracks concurrently
+        await asyncio.gather(*[_process_track(t) for t in tracks])
 
         # Build blackboard (observations-only)
         Blackboard().write(store, [t.name for t in tracks])

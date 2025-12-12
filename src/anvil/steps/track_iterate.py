@@ -35,7 +35,7 @@ class TrackIterate:
     name: str = "track_iterate"
     redactor: Redactor = Redactor()
 
-    def run(
+    async def run(
         self,
         *,
         store: ArtifactStore,
@@ -50,7 +50,7 @@ class TrackIterate:
     ) -> None:
         directions = load_profile(directions_profile)
         try:
-            result = provider.run_iteration(
+            result = await provider.run_iteration(
                 repo=repo,
                 track=track,
                 iteration=iteration,
@@ -82,7 +82,8 @@ class TrackIterate:
         iter_dir.mkdir(parents=True, exist_ok=True)
 
         # Redact text outputs defensively.
-        (iter_dir / "ITERATION.txt").write_text(self.redactor.redact(result.text), encoding="utf-8")
+        result_text = result.text or "(No text output from provider)"
+        (iter_dir / "ITERATION.txt").write_text(self.redactor.redact(result_text), encoding="utf-8")
 
         # Task 4.6: Redact ITERATION.json content
         # We redact the JSON string to catch secrets in values 

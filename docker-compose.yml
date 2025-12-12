@@ -18,6 +18,14 @@ services:
     # Working directory inside container
     working_dir: /repo
     
+    # Security hardening (optional - uncomment for stricter isolation)
+    # read_only: true
+    # security_opt:
+    #   - "no-new-privileges:true"
+    # cap_drop:
+    #   - ALL
+    # network_mode: "none"
+    
     # Environment variables (optional)
     environment:
       # Uncomment and set if using Gemini provider

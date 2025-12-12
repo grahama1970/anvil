@@ -23,6 +23,7 @@ CONTRACT
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import typer
@@ -211,7 +212,7 @@ def debug_run(
         use_docker=use_docker,
         use_treesitter=use_treesitter,
     )
-    result = run_debug_session(cfg)
+    result = asyncio.run(run_debug_session(cfg))
     console.print(f"[bold]Run[/bold] {rid} finished with status: {result.status}")
     console.print(f"Artifacts: {result.run_dir}")
     if result.decision_file:
@@ -248,7 +249,7 @@ def debug_resume(
         mode="debug",
         resume=True,
     )
-    result = run_debug_session(cfg)
+    result = asyncio.run(run_debug_session(cfg))
     console.print(f"[bold]Run[/bold] {run_id} resumed, status: {result.status}")
     console.print(f"Artifacts: {result.run_dir}")
 

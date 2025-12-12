@@ -47,7 +47,7 @@ class CopilotCliProvider(Provider):
     allow_tools: list[str] = field(default_factory=list)
     deny_tools: list[str] = field(default_factory=list)
 
-    def run_iteration(
+    async def run_iteration(
         self,
         *,
         repo: Path,
@@ -94,32 +94,30 @@ class CopilotCliProvider(Provider):
         for t in self.deny_tools:
             args.extend(["--deny-tool", t])
 
-        proc = subprocess.run(
-            args,
+        import asyncio
+        import os
+
+        process = await asyncio.create_subprocess_exec(
+            self.copilot_cmd,
+            *args,
             cwd=str(repo),
-            capture_output=True,
-            text=True,
-            timeout=self.timeout_s,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=os.environ,
         )
-        combined = (proc.stdout or "") + (("\n" + proc.stderr) if proc.stderr else "")
-        # Task 4.9: We could capture to files if we used run_cmd, or just expose them.
-        # The ProviderResult currently returns 'text'.
-        # Let's check base.py to see if we can add separate fields or meta.
-        # For now, adhering to contract to return combined text, 
-        # but we can enhance meta logs if needed.
-        # But wait, step 4.9 says "Capture Provider stdout/stderr".
-        # The current implementation DOES capture them in 'combined' text.
-        # Maybe the task implies saving to files separately?
-        # TrackIterate saves 'ITERATION.txt' which is result.text.
-        # So it's effectively captured.
-        # I'll double check if I should use shell.run_cmd here to save logs.
-        # CLIs usually run manual subprocess because they might not want file side-effects 
-        # in the repo root (or obscure logs).
-        # Actually shell.run_cmd writes to explicit paths.
-        # I will leave as is unless I see a STRONG need to change base ProviderResult.
-        
-        if proc.returncode != 0:
-            raise RuntimeError(f"copilot failed (rc={proc.returncode}). Output:\n{combined}")
+
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=self.timeout_s)
+        except asyncio.TimeoutError:
+            process.kill()
+            raise RuntimeError(f"copilot timed out after {self.timeout_s}s")
+
+        stdout_text = stdout_b.decode() if stdout_b else ""
+        stderr_text = stderr_b.decode() if stderr_b else ""
+        combined = stdout_text + (("\n" + stderr_text) if stderr_text else "")
+
+        if process.returncode != 0:
+            raise RuntimeError(f"copilot failed (rc={process.returncode}). Output:\n{combined}")
 
         json_block = extract_between(combined, _BEGIN_JSON, _END_JSON)
         if not json_block:

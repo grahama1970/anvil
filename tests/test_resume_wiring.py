@@ -1,3 +1,5 @@
+import unittest
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -49,11 +51,11 @@ def test_resume_logic_skips_run(tmp_path):
             MockJudge.return_value.check.return_value = 0
 
             # Run session
-            res = run_debug_session(args)
+            res = asyncio.run(run_debug_session(args))
             
             # Should read status
             store_instance.read_json.assert_called_with("RUN_STATUS.json")
             
             # Since logic currently just "warns/passes", it proceeds to try components
             # But we verified it ATTMEPTED to load status. 
-            assert res.status == "DONE" 
+            assert res.status == "DONE"

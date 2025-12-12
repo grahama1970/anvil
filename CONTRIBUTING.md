@@ -41,7 +41,7 @@ pytest -s
 
 ## Project Structure
 
-- `src/debugger/`: Main package source.
+- `src/anvil/`: Main package source.
   - `cli.py`: Entry point (`anvil` command).
   - `orchestrator.py`: Main logic driving the debug loop.
   - `steps/`: Individual pipeline steps (Context, Repro, Iterate, etc.).
@@ -50,10 +50,10 @@ pytest -s
 
 ## Adding a New Provider
 
-1.  Create a new file in `src/debugger/providers/` (e.g., `my_llm.py`).
-2.  Inherit from `Provider` base class (`src/debugger/providers/base.py`).
+1.  Create a new file in `src/anvil/providers/` (e.g., `my_llm.py`).
+2.  Inherit from `Provider` base class (`src/anvil/providers/base.py`).
 3.  Implement `run_iteration`.
-4.  Register it in `src/debugger/config.py`.
+4.  Register it in `src/anvil/config.py`.
 
 ## Code Style
 
@@ -64,4 +64,4 @@ pytest -s
 ## Artifacts & Contracts
 
 Anvil relies heavily on "Artifact Contracts" to ensure robust interaction between steps.
-See the `CONTRACT` docstrings at the top of each module in `src/debugger/steps/` for input/output requirements.
+See the `CONTRACT` docstrings at the top of each module in `src/anvil/steps/` for input/output requirements.

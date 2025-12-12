@@ -36,7 +36,7 @@ class GeminiCliProvider(Provider):
     model: str = "gemini-3-pro"
     timeout_s: int = 600
 
-    def run_iteration(
+    async def run_iteration(
         self,
         *,
         repo: Path,
@@ -60,7 +60,6 @@ class GeminiCliProvider(Provider):
         )
 
         args = [
-            self.gemini_cmd,
             "--model",
             self.model,
             "--output-format",
@@ -68,16 +67,31 @@ class GeminiCliProvider(Provider):
             "--prompt",
             prompt,
         ]
-        proc = subprocess.run(
-            args,
+        
+        import asyncio
+        import os
+
+        process = await asyncio.create_subprocess_exec(
+            self.gemini_cmd,
+            *args,
             cwd=str(repo),
-            capture_output=True,
-            text=True,
-            timeout=self.timeout_s,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=os.environ,
         )
-        combined = (proc.stdout or "") + (("\n" + proc.stderr) if proc.stderr else "")
-        if proc.returncode != 0:
-            raise RuntimeError(f"gemini failed (rc={proc.returncode}). Output:\n{combined}")
+
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=self.timeout_s)
+        except asyncio.TimeoutError:
+            process.kill()
+            raise RuntimeError(f"gemini timed out after {self.timeout_s}s")
+
+        stdout_text = stdout_b.decode() if stdout_b else ""
+        stderr_text = stderr_b.decode() if stderr_b else ""
+        combined = stdout_text + (("\n" + stderr_text) if stderr_text else "")
+
+        if process.returncode != 0:
+            raise RuntimeError(f"gemini failed (rc={process.returncode}). Output:\n{combined}")
 
         json_block = extract_between(combined, _BEGIN_JSON, _END_JSON)
         if not json_block:

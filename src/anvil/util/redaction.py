@@ -33,6 +33,7 @@ class Redactor:
         out = text
         for pat in self.patterns:
             out = pat.sub("[REDACTED]", out)
+        return out
 
 if __name__ == "__main__":
     import argparse

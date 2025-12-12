@@ -23,7 +23,7 @@ from .base import Provider, ProviderResult
 class GhCliProvider(Provider):
     gh_cmd: str = "gh"
 
-    def run_iteration(
+    async def run_iteration(
         self,
         *,
         repo: Path,

@@ -2,9 +2,9 @@
 
 This request is for a full-project review focused on:
 
-1) **Docs vs. code alignment** (README + templates vs. real behavior)
-2) **CLI reachability** (every major “script/module” is runnable via a CLI path to reproduce/debug)
-3) **Operational readiness** (uv + Docker reproducibility, basic hardening)
+1. **Docs vs. code alignment** (README + templates vs. real behavior)
+2. **CLI reachability** (every major “script/module” is runnable via a CLI path to reproduce/debug)
+3. **Operational readiness** (uv + Docker reproducibility, basic hardening)
 
 ## Quick links (files to start with)
 
@@ -18,26 +18,26 @@ This request is for a full-project review focused on:
   - `Dockerfile`
   - `.dockerignore`
 - CLI + orchestration:
-  - `src/debugger/cli.py`
-  - `src/debugger/orchestrator.py`
-  - `src/debugger/config.py`
+  - `src/anvil/cli.py`
+  - `src/anvil/orchestrator.py`
+  - `src/anvil/config.py`
 - Workflow steps:
-  - `src/debugger/steps/context_builder.py`
-  - `src/debugger/steps/repro_plan.py`
-  - `src/debugger/steps/track_iterate.py`
-  - `src/debugger/steps/verify.py`
-  - `src/debugger/steps/judge.py`
-  - `src/debugger/steps/apply.py`
+  - `src/anvil/steps/context_builder.py`
+  - `src/anvil/steps/repro_plan.py`
+  - `src/anvil/steps/track_iterate.py`
+  - `src/anvil/steps/verify.py`
+  - `src/anvil/steps/judge.py`
+  - `src/anvil/steps/apply.py`
 - Providers (multi-model support):
-  - `src/debugger/providers/manual.py`
-  - `src/debugger/providers/copilot_cli.py`
-  - `src/debugger/providers/gemini_cli.py`
-  - `src/debugger/providers/gh_cli.py`
-  - `src/debugger/providers/base.py`
+  - `src/anvil/providers/manual.py`
+  - `src/anvil/providers/copilot_cli.py`
+  - `src/anvil/providers/gemini_cli.py`
+  - `src/anvil/providers/gh_cli.py`
+  - `src/anvil/providers/base.py`
 - Templates (what `dbg init` writes):
-  - `src/debugger/templates/tracks.yaml`
-  - `src/debugger/templates/verify_contract.yaml`
-  - `src/debugger/templates/issue.md`
+  - `src/anvil/templates/tracks.yaml`
+  - `src/anvil/templates/verify_contract.yaml`
+  - `src/anvil/templates/issue.md`
 
 ## Reviewer goal #1 — Docs vs code mapping
 
@@ -48,36 +48,36 @@ features are clearly labeled as “stub/optional”.
 
 - `dbg init`
   - Docs: `README.md`
-  - CLI: `src/debugger/cli.py` (`init`)
-  - Impl: `src/debugger/init.py` (`write_templates`)
-  - Templates: `src/debugger/templates/*`
+  - CLI: `src/anvil/cli.py` (`init`)
+  - Impl: `src/anvil/init.py` (`write_templates`)
+  - Templates: `src/anvil/templates/*`
 - `dbg doctor`
   - Docs: `README.md`
-  - CLI: `src/debugger/cli.py` (`doctor`)
-  - Impl: `src/debugger/doctor.py` (`doctor_report`)
+  - CLI: `src/anvil/cli.py` (`doctor`)
+  - Impl: `src/anvil/doctor.py` (`doctor_report`)
 - `dbg debug run`
   - Docs: `README.md`
-  - CLI: `src/debugger/cli.py` (`debug_run`)
-  - Orchestrator: `src/debugger/orchestrator.py` (`run_debug_session`)
-  - Step modules: `src/debugger/steps/*.py`
+  - CLI: `src/anvil/cli.py` (`debug_run`)
+  - Orchestrator: `src/anvil/orchestrator.py` (`run_debug_session`)
+  - Step modules: `src/anvil/steps/*.py`
 - `dbg debug status`, `dbg debug resume`
-  - CLI: `src/debugger/cli.py` (`debug_status`, `debug_resume`)
+  - CLI: `src/anvil/cli.py` (`debug_status`, `debug_resume`)
 - `dbg harden run`, `dbg harden status`
-  - CLI: `src/debugger/cli.py`
-  - Orchestrator: `src/debugger/orchestrator.py` (`run_harden_session`)
+  - CLI: `src/anvil/cli.py`
+  - Orchestrator: `src/anvil/orchestrator.py` (`run_harden_session`)
 
 ### README: Providers / multi-model claims
 
 The repo is intended to support mixing providers/models per track (crucial requirement).
 
 - Provider selection wiring (review carefully):
-  - `src/debugger/orchestrator.py` (`_provider_for_track`)
-  - `src/debugger/config.py` (`TrackConfig.provider`, `TrackConfig.model`, `TrackConfig.provider_options`)
+  - `src/anvil/orchestrator.py` (`_provider_for_track`)
+  - `src/anvil/config.py` (`TrackConfig.provider`, `TrackConfig.model`, `TrackConfig.provider_options`)
 - Providers:
-  - `manual`: `src/debugger/providers/manual.py`
-  - `copilot`: `src/debugger/providers/copilot_cli.py` (runs `copilot --model ... -p ...`)
-  - `gemini`: `src/debugger/providers/gemini_cli.py` (runs `gemini --model ... --prompt ...`)
-  - `gh_cli`: `src/debugger/providers/gh_cli.py` (explicit stub)
+  - `manual`: `src/anvil/providers/manual.py`
+  - `copilot`: `src/anvil/providers/copilot_cli.py` (runs `copilot --model ... -p ...`)
+  - `gemini`: `src/anvil/providers/gemini_cli.py` (runs `gemini --model ... --prompt ...`)
+  - `gh_cli`: `src/anvil/providers/gh_cli.py` (explicit stub)
 
 Please confirm the docs match actual supported values (`provider: manual|copilot|gemini|gh_cli`)
 and that unsupported providers fail clearly in artifacts (not silent fallback).
@@ -86,7 +86,7 @@ and that unsupported providers fail clearly in artifacts (not silent fallback).
 
 - Docs: `README.md`
 - Implementation/fallback behavior:
-  - `src/debugger/treesitter_utils.py` (prefers local `treesitter-tools` if installed; otherwise falls back)
+  - `src/anvil/treesitter_utils.py` (prefers local `treesitter-tools` if installed; otherwise falls back)
   - `pyproject.toml` (`dependency-groups.ast` using `file:///home/graham/workspace/experiments/treesitter-tools`)
 
 ## Reviewer goal #2 — “Every script has a runnable CLI path”
@@ -101,7 +101,7 @@ Please verify the following “reachability matrix”:
 
 ### Primary CLI entrypoint
 
-- Entry point: `pyproject.toml` → `[project.scripts] dbg = "debugger.cli:app"`
+- Entry point: `pyproject.toml` → `[project.scripts] dbg = "anvil.cli:app"`
 - Implementation: `src/debugger/cli.py`
 
 ### Workflow steps are runnable via `dbg debug run`
@@ -188,10 +188,9 @@ I would like reviewers to look closely at:
 
 ## What I want feedback on (explicit questions)
 
-1) **Docs accuracy:** Is anything in `README.md` misleading vs what the code actually does today?
-2) **Provider selection:** Is the provider/model configuration ergonomic enough for humans and the orchestrator?
-3) **CLI coverage:** Do you agree that “one CLI with reachability matrix” satisfies “every script is runnable”,
+1. **Docs accuracy:** Is anything in `README.md` misleading vs what the code actually does today?
+2. **Provider selection:** Is the provider/model configuration ergonomic enough for humans and the orchestrator?
+3. **CLI coverage:** Do you agree that “one CLI with reachability matrix” satisfies “every script is runnable”,
    or do you want additional debug subcommands (e.g., `dbg step verify`, `dbg provider test`)?
-4) **Docker expectation:** Should the Docker image include Copilot/Gemini CLIs, or should those remain host-only?
-5) **Hardening:** Any remaining obvious injection/escape surfaces or unsafe defaults?
-
+4. **Docker expectation:** Should the Docker image include Copilot/Gemini CLIs, or should those remain host-only?
+5. **Hardening:** Any remaining obvious injection/escape surfaces or unsafe defaults?
