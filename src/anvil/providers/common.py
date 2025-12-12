@@ -13,6 +13,8 @@ CONTRACT
 import json
 import re
 
+from ..util.json_utils import parse_json
+
 def extract_between(text: str, start_marker: str, end_marker: str) -> str:
     """Extract text between valid markers."""
     if not text or not start_marker or not end_marker:
@@ -38,11 +40,16 @@ def extract_between(text: str, start_marker: str, end_marker: str) -> str:
         return ""
 
 def normalize_iteration_json(raw_json: str) -> str:
-    """Ensure iteration JSON matches schema minimal requirements."""
-    try:
-        data = json.loads(raw_json)
-    except json.JSONDecodeError:
-        # Try to fix common issues or just return empty struct
+    """Ensure iteration JSON matches schema minimal requirements.
+    
+    Uses json_repair library to handle malformed LLM output (control chars,
+    trailing commas, unquoted keys, etc).
+    """
+    # Use robust parse_json which applies json_repair
+    data = parse_json(raw_json)
+    
+    # If parse_json failed completely, return fallback
+    if not isinstance(data, dict):
         return json.dumps({
             "schema_version": 1,
             "status_signal": "NEEDS_MORE_WORK",
