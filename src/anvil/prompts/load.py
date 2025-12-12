@@ -7,7 +7,7 @@ CONTRACT
 - Outputs (required):
   - Profile text content
 - Invariants:
-  - Loads from package `debugger.prompts.profiles`
+  - Loads from package `anvil.prompts.profiles`
 - Failure:
   - Raises FileNotFoundError/ValueError if profile missing
 """

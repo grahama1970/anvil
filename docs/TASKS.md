@@ -69,50 +69,50 @@ then enhance it to match the pattern above.
 
 ### Task 1.1: Core Modules
 
-- [ ] `src/debugger/cli.py` — Add CONTRACT listing all subcommands and their args/outputs
-- [ ] `src/debugger/config.py` — Add CONTRACT for YAML parsing and validation rules
-- [ ] `src/debugger/orchestrator.py` — Add CONTRACT listing workflow steps and artifacts
-- [ ] `src/debugger/doctor.py` — Add CONTRACT listing all checks and exit codes
-- [ ] `src/debugger/init.py` — Add CONTRACT listing templates written
-- [ ] `src/debugger/worktrees.py` — Add CONTRACT for worktree creation/cleanup
+- [ ] `src/anvil/cli.py` — Add CONTRACT listing all subcommands and their args/outputs
+- [ ] `src/anvil/config.py` — Add CONTRACT for YAML parsing and validation rules
+- [ ] `src/anvil/orchestrator.py` — Add CONTRACT listing workflow steps and artifacts
+- [ ] `src/anvil/doctor.py` — Add CONTRACT listing all checks and exit codes
+- [ ] `src/anvil/init.py` — Add CONTRACT listing templates written
+- [ ] `src/anvil/worktrees.py` — Add CONTRACT for worktree creation/cleanup
 
 ### Task 1.2: Steps
 
-- [ ] `src/debugger/steps/base.py` — Add CONTRACT for Step protocol
-- [ ] `src/debugger/steps/context_builder.py` — Enhance existing CONTRACT
-- [ ] `src/debugger/steps/repro_plan.py` — Add/enhance CONTRACT
-- [ ] `src/debugger/steps/track_iterate.py` — Enhance existing CONTRACT
-- [ ] `src/debugger/steps/verify.py` — Enhance existing CONTRACT
-- [ ] `src/debugger/steps/judge.py` — Enhance existing CONTRACT
-- [ ] `src/debugger/steps/apply.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/steps/base.py` — Add CONTRACT for Step protocol
+- [ ] `src/anvil/steps/context_builder.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/steps/repro_plan.py` — Add/enhance CONTRACT
+- [ ] `src/anvil/steps/track_iterate.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/steps/verify.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/steps/judge.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/steps/apply.py` — Enhance existing CONTRACT
 
 ### Task 1.3: Providers
 
-- [ ] `src/debugger/providers/base.py` — Add CONTRACT for Provider protocol
-- [ ] `src/debugger/providers/manual.py` — Add CONTRACT
-- [ ] `src/debugger/providers/copilot_cli.py` — Enhance existing CONTRACT
-- [ ] `src/debugger/providers/gemini_cli.py` — Enhance existing CONTRACT
-- [ ] `src/debugger/providers/gh_cli.py` — Add CONTRACT (even for stub)
+- [ ] `src/anvil/providers/base.py` — Add CONTRACT for Provider protocol
+- [ ] `src/anvil/providers/manual.py` — Add CONTRACT
+- [ ] `src/anvil/providers/copilot_cli.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/providers/gemini_cli.py` — Enhance existing CONTRACT
+- [ ] `src/anvil/providers/gh_cli.py` — Add CONTRACT (even for stub)
 
 ### Task 1.4: Utilities
 
-- [ ] `src/debugger/util/ids.py` — Add CONTRACT for ID validation rules
-- [ ] `src/debugger/util/shell.py` — Add CONTRACT for command execution
-- [ ] `src/debugger/util/paths.py` — Add CONTRACT for path safety
-- [ ] `src/debugger/util/redaction.py` — Add CONTRACT for redaction patterns
-- [ ] `src/debugger/util/events.py` — Add CONTRACT for event logging
-- [ ] `src/debugger/util/text.py` — Add CONTRACT
+- [ ] `src/anvil/util/ids.py` — Add CONTRACT for ID validation rules
+- [ ] `src/anvil/util/shell.py` — Add CONTRACT for command execution
+- [ ] `src/anvil/util/paths.py` — Add CONTRACT for path safety
+- [ ] `src/anvil/util/redaction.py` — Add CONTRACT for redaction patterns
+- [ ] `src/anvil/util/events.py` — Add CONTRACT for event logging
+- [ ] `src/anvil/util/text.py` — Add CONTRACT
 
 ### Task 1.5: Artifacts & Collaboration
 
-- [ ] `src/debugger/artifacts/store.py` — Add CONTRACT for path safety and write ops
-- [ ] `src/debugger/artifacts/schemas.py` — Add CONTRACT listing all schemas
-- [ ] `src/debugger/collab/blackboard.py` — Add CONTRACT
-- [ ] `src/debugger/contracts/validate.py` — Add CONTRACT
-- [ ] `src/debugger/contracts/base.py` — Add "future work" comment or remove placeholder
-- [ ] `src/debugger/score/compute.py` — Add CONTRACT
-- [ ] `src/debugger/prompts/load.py` — Add CONTRACT
-- [ ] `src/debugger/treesitter_utils.py` — Add/enhance CONTRACT
+- [ ] `src/anvil/artifacts/store.py` — Add CONTRACT for path safety and write ops
+- [ ] `src/anvil/artifacts/schemas.py` — Add CONTRACT listing all schemas
+- [ ] `src/anvil/collab/blackboard.py` — Add CONTRACT
+- [ ] `src/anvil/contracts/validate.py` — Add CONTRACT
+- [ ] `src/anvil/contracts/base.py` — Add "future work" comment or remove placeholder
+- [ ] `src/anvil/score/compute.py` — Add CONTRACT
+- [ ] `src/anvil/prompts/load.py` — Add CONTRACT
+- [ ] `src/anvil/treesitter_utils.py` — Add/enhance CONTRACT
 
 ---
 
@@ -123,36 +123,36 @@ without going through the full orchestrator.
 
 ### Task 2.1: Utility CLIs
 
-- [ ] `src/debugger/util/ids.py` — CLI: `--validate-run-id <id>` and `--new-run-id`
-- [ ] `src/debugger/util/shell.py` — CLI: `--cmd <command> --cwd <dir>`
-- [ ] `src/debugger/util/paths.py` — CLI: `--safe-filename <name>`
-- [ ] `src/debugger/util/redaction.py` — CLI: `--redact <text>` or `--redact-file <path>`
-- [ ] `src/debugger/util/events.py` — CLI: `--emit <json> --log-path <path>`
+- [ ] `src/anvil/util/ids.py` — CLI: `--validate-run-id <id>` and `--new-run-id`
+- [ ] `src/anvil/util/shell.py` — CLI: `--cmd <command> --cwd <dir>`
+- [ ] `src/anvil/util/paths.py` — CLI: `--safe-filename <name>`
+- [ ] `src/anvil/util/redaction.py` — CLI: `--redact <text>` or `--redact-file <path>`
+- [ ] `src/anvil/util/events.py` — CLI: `--emit <json> --log-path <path>`
 
 ### Task 2.2: Step CLIs
 
-- [ ] `src/debugger/steps/context_builder.py` — CLI: `--repo <path> --issue <text> --out-dir <path>`
-- [ ] `src/debugger/steps/repro_plan.py` — CLI: `--issue <text> --out-dir <path>`
-- [ ] `src/debugger/steps/verify.py` — CLI: `--repo <path> --out-dir <path>`
-- [ ] `src/debugger/steps/judge.py` — CLI: `--run-dir <path> --tracks A,B`
-- [ ] `src/debugger/steps/apply.py` — CLI: `--repo <path> --patch <path>`
-- [ ] `src/debugger/steps/track_iterate.py` — CLI: `--run-dir <path> --track <name> --provider manual`
+- [ ] `src/anvil/steps/context_builder.py` — CLI: `--repo <path> --issue <text> --out-dir <path>`
+- [ ] `src/anvil/steps/repro_plan.py` — CLI: `--issue <text> --out-dir <path>`
+- [ ] `src/anvil/steps/verify.py` — CLI: `--repo <path> --out-dir <path>`
+- [ ] `src/anvil/steps/judge.py` — CLI: `--run-dir <path> --tracks A,B`
+- [ ] `src/anvil/steps/apply.py` — CLI: `--repo <path> --patch <path>`
+- [ ] `src/anvil/steps/track_iterate.py` — CLI: `--run-dir <path> --track <name> --provider manual`
 
 ### Task 2.3: Provider CLIs
 
-- [ ] `src/debugger/providers/manual.py` — CLI: `--track <name> --role <role> --out-dir <path>`
-- [ ] `src/debugger/providers/copilot_cli.py` — CLI: `--prompt <text> --model <model>` (dry-run mode)
-- [ ] `src/debugger/providers/gemini_cli.py` — CLI: `--prompt <text> --model <model>` (dry-run mode)
+- [ ] `src/anvil/providers/manual.py` — CLI: `--track <name> --role <role> --out-dir <path>`
+- [ ] `src/anvil/providers/copilot_cli.py` — CLI: `--prompt <text> --model <model>` (dry-run mode)
+- [ ] `src/anvil/providers/gemini_cli.py` — CLI: `--prompt <text> --model <model>` (dry-run mode)
 
 ### Task 2.4: Artifact & Other CLIs
 
-- [ ] `src/debugger/artifacts/store.py` — CLI: `--run-dir <path> --write <rel> --content <text>`
-- [ ] `src/debugger/collab/blackboard.py` — CLI: `--run-dir <path> --tracks A,B`
-- [ ] `src/debugger/score/compute.py` — CLI: `--run-dir <path> --tracks A,B`
-- [ ] `src/debugger/prompts/load.py` — CLI: `--profile <name>` (prints profile content)
-- [ ] `src/debugger/treesitter_utils.py` — CLI: `--file <path>` (prints outline)
-- [ ] `src/debugger/config.py` — CLI: `--validate <tracks.yaml>`
-- [ ] `src/debugger/worktrees.py` — CLI: `--repo <path> --create A,B` (dry-run mode)
+- [ ] `src/anvil/artifacts/store.py` — CLI: `--run-dir <path> --write <rel> --content <text>`
+- [ ] `src/anvil/collab/blackboard.py` — CLI: `--run-dir <path> --tracks A,B`
+- [ ] `src/anvil/score/compute.py` — CLI: `--run-dir <path> --tracks A,B`
+- [ ] `src/anvil/prompts/load.py` — CLI: `--profile <name>` (prints profile content)
+- [ ] `src/anvil/treesitter_utils.py` — CLI: `--file <path>` (prints outline)
+- [ ] `src/anvil/config.py` — CLI: `--validate <tracks.yaml>`
+- [ ] `src/anvil/worktrees.py` — CLI: `--repo <path> --create A,B` (dry-run mode)
 
 ---
 
@@ -162,8 +162,8 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 3.1: Resume Mode
 
-- [ ] Read `src/debugger/cli.py` lines 202-220
-- [ ] Read `src/debugger/orchestrator.py`
+- [ ] Read `src/anvil/cli.py` lines 202-220
+- [ ] Read `src/anvil/orchestrator.py`
 - [ ] Implement resume logic:
   - Load existing `RUN_STATUS.json` on resume
   - Skip completed steps based on artifact presence
@@ -172,7 +172,7 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 3.2: Judge Scoring
 
-- [ ] Read `src/debugger/steps/judge.py`
+- [ ] Read `src/anvil/steps/judge.py`
 - [ ] Fix: Run verification per-worktree OR use per-track metrics from ITERATION.json
 - [ ] Incorporate iteration `confidence` field into scoring
 - [ ] Update scoring to differentiate tracks meaningfully
@@ -180,25 +180,25 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 3.3: Harden Session
 
-- [ ] Read `src/debugger/orchestrator.py` `run_harden_session`
+- [ ] Read `src/anvil/orchestrator.py` `run_harden_session`
 - [ ] Implement: Load tracks from `tracks.yaml`
 - [ ] Implement: Run harden-specific workflow (breaker tracks, etc.)
 - [ ] Add test for harden workflow
 
 ### Task 3.4: Provider Validation
 
-- [ ] Read `src/debugger/config.py` `load_tracks_file`
+- [ ] Read `src/anvil/config.py` `load_tracks_file`
 - [ ] Add validation: Check `provider` value is in `{manual, copilot, gemini, gh_cli}`
 - [ ] Fail fast with clear error message on unknown provider
 
 ### Task 3.5: Deprecated utcnow()
 
-- [ ] Read `src/debugger/util/ids.py`
+- [ ] Read `src/anvil/util/ids.py`
 - [ ] Replace `datetime.datetime.utcnow()` with `datetime.datetime.now(datetime.UTC)`
 
 ### Task 3.6: Worktree Branch Conflict
 
-- [ ] Read `src/debugger/worktrees.py`
+- [ ] Read `src/anvil/worktrees.py`
 - [ ] Fix: Detect existing `dbg/<run_id>/<track>` branches and either:
   - Refuse with clear error if `--run-id` conflicts, OR
   - Delete old branch + worktree before creating new one
@@ -210,7 +210,7 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 4.1: Extract Provider Common Code
 
-- [ ] Create `src/debugger/providers/common.py`
+- [ ] Create `src/anvil/providers/common.py`
 - [ ] Move shared functions from `copilot_cli.py` and `gemini_cli.py`:
   - `_between()`
   - `_normalize_iteration_json()`
@@ -220,18 +220,18 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 4.2: Add --version Flag
 
-- [ ] Read `src/debugger/cli.py`
+- [ ] Read `src/anvil/cli.py`
 - [ ] Add version callback using Typer's `typer.Option(callback=...)`
 - [ ] Version should read from `debugger.__version__` or `importlib.metadata`
 
 ### Task 4.3: Add --force Flag to Init
 
-- [ ] Read `src/debugger/init.py` and `src/debugger/cli.py`
+- [ ] Read `src/anvil/init.py` and `src/anvil/cli.py`
 - [ ] Add `--force` option to `dbg init` to overwrite existing templates
 
 ### Task 4.4: Improve Context Builder Regex
 
-- [ ] Read `src/debugger/steps/context_builder.py` line 51
+- [ ] Read `src/anvil/steps/context_builder.py` line 51
 - [ ] Improve keyword extraction:
   - Lower minimum word length (e.g., 2 chars)
   - Consider TF-IDF or frequency-based selection
@@ -245,37 +245,37 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 4.6: Redact ITERATION.json
 
-- [ ] Read `src/debugger/steps/track_iterate.py`
+- [ ] Read `src/anvil/steps/track_iterate.py`
 - [ ] Apply redaction to `ITERATION.json` as well as `ITERATION.txt`
 - [ ] Secrets may appear in JSON fields (hypothesis, experiments, etc.)
 
 ### Task 4.7: Apply Step Enhancement
 
-- [ ] Read `src/debugger/steps/apply.py`
+- [ ] Read `src/anvil/steps/apply.py`
 - [ ] Run `git apply --check` before actual apply
 - [ ] Record clearer failure reason on mismatch
 
 ### Task 4.8: Add YAML Schema Validation
 
-- [ ] Read `src/debugger/config.py`
+- [ ] Read `src/anvil/config.py`
 - [ ] Use `jsonschema` to validate `tracks.yaml` structure
 - [ ] Fail with clear schema error if invalid
 
 ### Task 4.9: Capture Provider stdout/stderr
 
-- [ ] Read `src/debugger/providers/copilot_cli.py` and `gemini_cli.py`
+- [ ] Read `src/anvil/providers/copilot_cli.py` and `gemini_cli.py`
 - [ ] Write provider stdout/stderr to separate log files in track artifacts
 - [ ] Helps debug provider failures
 
 ### Task 4.10: Verify Duration and Byte Counts
 
-- [ ] Read `src/debugger/steps/verify.py` and `src/debugger/util/shell.py`
+- [ ] Read `src/anvil/steps/verify.py` and `src/anvil/util/shell.py`
 - [ ] Add `elapsed_s` and `stdout_bytes`/`stderr_bytes` to `verify.commands.json`
 - [ ] Extend `CmdResult` to include elapsed time
 
 ### Task 4.11: EventLog Include run_id
 
-- [ ] Read `src/debugger/util/events.py`
+- [ ] Read `src/anvil/util/events.py`
 - [ ] Configure `EventLog` with `run_id` at construction
 - [ ] Include `run_id` in every event automatically
 
@@ -346,7 +346,7 @@ Fix bugs identified in REVIEW.md.
 
 ### Task 6.5: Profile Documentation
 
-- [ ] Read `src/debugger/prompts/profiles/*.md`
+- [ ] Read `src/anvil/prompts/profiles/*.md`
 - [ ] Add "When to use" one-liner at top of each profile
 
 ### Task 6.6: AGENTS.md Improvement
