@@ -1,0 +1,7 @@
+tracks:
+  - name: readme_update
+    role: technical_writer
+    provider: copilot
+    model: gpt-5
+    budgets:
+      max_iters: 3
