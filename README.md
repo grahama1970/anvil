@@ -69,8 +69,7 @@ tracks:
 
 ## Tree-sitter utilities (optional)
 
-If installed (`uv add anvil[treesitter]`), the context builder can optionally emit symbol outlines
-for relevant files:
+If installed (`uv add anvil[treesitter]`), the context builder can optionally emit symbol outlines for relevant files (fallback/partial support only; see below for full support):
 
 - `SYMBOLS.json` (symbols with ranges)
 
@@ -78,8 +77,7 @@ Enable via `--use-treesitter` or config (`context.use_treesitter: true`).
 
 ### Local `treesitter-tools` integration (this workspace)
 
-This repo also defines an optional `ast` dependency group that installs
-`treesitter-tools` from `file:///home/graham/workspace/experiments/treesitter-tools`.
+For full support (recommended), this repo also defines an optional `ast` dependency group that installs `treesitter-tools` from `file:///home/graham/workspace/experiments/treesitter-tools`.
 
 ```bash
 uv sync --group ast

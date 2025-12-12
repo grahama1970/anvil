@@ -122,18 +122,22 @@ class CopilotCliProvider(Provider):
         json_block = extract_between(combined, _BEGIN_JSON, _END_JSON)
         if not json_block:
             raise ValueError("copilot output missing iteration JSON markers")
-        it = json.loads(json_block)
-        if not isinstance(it, dict):
-            raise ValueError("iteration JSON must be an object")
-
         diff_block = extract_between(combined, _BEGIN_DIFF, _END_DIFF)
         patch_diff = None
         if diff_block and diff_block.strip() != "NO_PATCH":
             patch_diff = diff_block.strip() + "\n"
 
-        it = normalize_iteration_json(
-            it, track=track, iteration=iteration, has_patch=bool(patch_diff)
-        )
+        # Validate/Normalize JSON (robustly)
+        normalized_str = normalize_iteration_json(json_block)
+        it = json.loads(normalized_str)
+        
+        # Inject/Fix metadata that normalize might not know about
+        it["track"] = track
+        it["iteration"] = iteration
+        if patch_diff:
+            if "proposed_changes" not in it:
+                it["proposed_changes"] = {}
+            it["proposed_changes"]["has_patch"] = True
         return ProviderResult(
             text=combined,
             iteration_json=it,
