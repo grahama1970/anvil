@@ -33,6 +33,7 @@ class RunMeta(BaseModel):
     repo_path: str
     mode: Literal["debug", "harden"]
     issue_text_present: bool = False
+    issue_text: str | None = None  # Full issue text for resume support
     use_docker: bool = False
     use_treesitter: bool = False
     tracks: list[dict[str, Any]] = Field(default_factory=list)

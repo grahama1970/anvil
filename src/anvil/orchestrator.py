@@ -157,13 +157,13 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
         # Hydrate issue_text if resuming or missing
         issue_text = cfg.issue_text
         if not issue_text and cfg.resume:
-            # Try loading from CONTEXT.md
-            ctx_md = store.path("CONTEXT.md")
-            if ctx_md.exists():
-                # This is imperfect as CONTEXT.md has more than just issue, but ReproPlan uses it.
-                # Actually ReproPlan takes issue_text.
-                # Better: load from RUN.json meta if possible, but RunMeta schema doesn't store full issue text, just bool.
-                # We'll rely on ContextBuilder to be idempotent if artifacts exist.
+            # Prefer RUN.json if it contains issue_text (forward/backward compatible)
+            try:
+                run_json = store.read_json("RUN.json")
+                if isinstance(run_json, dict) and "issue_text" in run_json and run_json["issue_text"]:
+                    issue_text = str(run_json["issue_text"])
+            except Exception:
+                # Fallback: leave issue_text empty and rely on existing artifacts to skip steps
                 pass
 
         tracks, use_ts, max_files = _load_tracks(cfg)
@@ -175,6 +175,7 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
                 repo_path=str(cfg.repo_path),
                 mode=cfg.mode,
                 issue_text_present=bool(issue_text),
+                issue_text=issue_text,  # Store for resume
                 use_docker=cfg.use_docker,
                 use_treesitter=use_ts,
                 tracks=[t.__dict__ for t in tracks],
