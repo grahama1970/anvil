@@ -84,7 +84,7 @@ def build_prompt(
         "schema_version": 1,
         "track": track,
         "iteration": iteration,
-        "status_signal": "CONTINUE | SKIP_TO_VERIFY | READY_FOR_FIX | NEEDS_MORE_WORK",
+        "status_signal": "CONTINUE | SKIP_TO_VERIFY | READY_FOR_FIX | NEEDS_MORE_WORK | DONE",
         "hypothesis": "string",
         "confidence": 0.0,
         "experiments": [],

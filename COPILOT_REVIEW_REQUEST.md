@@ -1,49 +1,47 @@
-# Asyncio Conversion and Multi-Iteration Loops
+# Verify Async Fixes and Claude Provider
 
 ## Repository and branch
 
-- **Repo:** `grahama1970/anvil` (or current repo)
-- **Branch:** `main` (or current branch)
+- **Repo:** `grahama1970/anvil`
+- **Branch:** `main`
 - **Paths of interest:**
   - `src/anvil/orchestrator.py`
-  - `src/anvil/providers/base.py`
+  - `src/anvil/providers/claude_cli.py`
   - `src/anvil/providers/copilot_cli.py`
   - `src/anvil/providers/gemini_cli.py`
-  - `src/anvil/cli.py`
+  - `src/anvil/steps/track_iterate.py`
   - `tests/test_loop_logic.py`
 
 ## Summary
 
-I have converted the core execution engine of Anvil from synchronous `subprocess` calls to asynchronous `asyncio` execution. This enables running multiple provider tracks (e.g., Copilot and Gemini) concurrently. I have also implemented autonomous multi-iteration loops, allowing tracks to self-correct over multiple turns until `max_iters` is reached or a `DONE` signal is received.
+I have applied the fixes from the previous code review regarding the Asyncio conversion. Specifically:
+
+1.  **Orchestrator Isolation:** Implemented `try/except` inside `_process_track` and `return_exceptions=True` in `asyncio.gather` so that a single track failure does not crash the session.
+2.  **Steps:** Converted `TrackIterate.run` to be fully async and await `provider.run_iteration`.
+3.  **Process Reaping:** Added `await process.wait()` after killing subprocesses in all CLI providers.
+4.  **Claude Provider:** Added `ClaudeCliProvider` and integrated it into `config.py` / `orchestrator.py`.
+5.  **Schema:** Added `"DONE"` to `IterationEnvelope` status signal.
 
 ## Objectives
 
-### 1. Asyncio Execution
+### 1. Verification of Exception Isolation
 
-- Verify that `asyncio.gather` in `orchestrator.py` correctly handles concurrent track execution.
-- Review `CopilotCliProvider` and `GeminiCliProvider` for correct usage of `asyncio.create_subprocess_exec` (ensure pipes are managed, timeouts handled).
-- Check that the `Provider` protocol properly defines `async def run_iteration`.
+- Review `orchestrator.py` around `asyncio.gather` and `_process_track`.
+- Does the `try/except` block correctly capture crashes and write `CRASH.txt` to the track directory?
+- Are `disqualified` tracks correctly handled in the `gather` results processing loop?
 
-### 2. Multi-Iteration Loops
+### 2. Provider Correctness
 
-- Review the `_process_track` logic in `orchestrator.py` for the iteration loop:
-  - Is `max_iters` respected?
-  - Does the `status_signal: DONE` check correctly break the loop?
-  - Is `BLACKBOARD.md` correctly updated and read safely (race conditions accepted)?
+- Verify `ClaudeCliProvider` implementation (logic, prompt building, JSON extraction).
+- Check that `CopilotCliProvider` no longer duplicates arguments.
 
-### 3. Error Handling
+### 3. Test Alignment
 
-- Ensure exceptions in one track do not crash the entire orchestrator (handled by `asyncio.gather` exception propagation vs try/except blocks inside `_process_track`).
-- Review `_ErrorProvider` usage and async compatibility.
-
-## Clarifying questions
-
-1. **Race Conditions:** Is the current "last write wins" / "read fresh" strategy for `BLACKBOARD.md` acceptable for the MVP, or do we need strict locking (e.g. `asyncio.Lock`)?
-2. **Signal Handling:** Should `SIGINT` (Ctrl+C) be handled explicitly to graceful shutdown subprocesses?
+- Review `tests/test_loop_logic.py`: proper usage of valid `IterationEnvelope` JSON in tests.
 
 ## Deliverable
 
 Reply with:
 
-- **Code Review Comments:** Identify bugs, race conditions, or improvements.
-- **Suggestions:** specifically for robust error handling in `asyncio.gather`.
+- **Code Review Comments:** Any remaining race conditions, unhandled edge cases, or logic errors.
+- **Approval:** If the implementation looks solid for Beta.

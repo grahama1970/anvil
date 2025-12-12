@@ -11,14 +11,17 @@ from src.anvil.providers.base import Provider, ProviderResult
 
 
 
+import tempfile
+
 class TestLoopLogic(unittest.TestCase):
     def setUp(self):
-        self.tmp_dir = Path("/tmp/anvil_loop_test")
-        if self.tmp_dir.exists():
-            shutil.rmtree(self.tmp_dir)
-        self.tmp_dir.mkdir()
+        self.tmp_dir_obj = tempfile.TemporaryDirectory()
+        self.tmp_dir = Path(self.tmp_dir_obj.name)
         self.repo = self.tmp_dir / "repo"
         self.repo.mkdir()
+    
+    def tearDown(self):
+        self.tmp_dir_obj.cleanup()
         
     def test_loop_runs_max_iters(self):
         # Setup tracks file
