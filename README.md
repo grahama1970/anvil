@@ -1,5 +1,9 @@
 # debugger
 
+<p align="center">
+  <img src="anvil.png" alt="Anvil logo" width="400" />
+</p>
+
 A **no-vibes** debugging and hardening harness:
 
 - **`dbg debug`**: issue-like prompt ➜ context ➜ repro plan ➜ multi-track worktrees ➜ verify ➜ judge ➜ apply
