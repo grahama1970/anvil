@@ -71,6 +71,7 @@ flowchart TD
 
     subgraph Worktrees ["The Thunderdome"]
         direction TB
+        style Worktrees text-align:left
         Dispatcher -->|"Track A"| Gemini["Gemini 1.5 Pro"]:::actor
         Dispatcher -->|"Track B"| Claude["Claude Sonnet"]:::actor
     end
