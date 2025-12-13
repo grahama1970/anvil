@@ -73,6 +73,10 @@ tracks:
             # We need .check() to return 0
             mock_ti.check.return_value = 0
             
+            # Configure MockWT validation
+            from anvil.worktrees import WorktreeValidation
+            MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=["loop_test"], failed={})
+            
             # We need .run() to write a fake ITERATION.json so the loop logic can read "status_signal"
             # The loop logic looks at: store.path("tracks", t.name, f"iter_{iteration:02d}", "ITERATION.json")
             async def side_effect_run(*args, **kwargs):
@@ -142,6 +146,7 @@ tracks:
             patch("anvil.orchestrator.ContextBuilder") as MockCB,
             patch("anvil.orchestrator.ReproPlan") as MockRP,
             patch("anvil.orchestrator._provider_for_track") as MockLoader,
+            patch("anvil.orchestrator.WorktreeManager") as MockWT,
             patch("anvil.orchestrator.TrackIterate") as MockTI_Cls, 
         ):
             # Create dummy artifacts
@@ -154,6 +159,10 @@ tracks:
             MockRP.return_value.check.return_value = 0
             mock_ti = MockTI_Cls.return_value 
             mock_ti.check.return_value = 0
+            
+            # Configure MockWT validation
+            from anvil.worktrees import WorktreeValidation
+            MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=["done_test"], failed={})
             
             async def side_effect_run(iteration, store, track, **kwargs):
                 p = store.path("tracks", track, f"iter_{iteration:02d}", "ITERATION.json")

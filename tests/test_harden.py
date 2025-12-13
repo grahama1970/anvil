@@ -40,7 +40,11 @@ def test_harden_session_writes_run_meta(tmp_repo, tmp_path):
          patch("anvil.orchestrator.Verify") as MockVerify:
         
         MockWT.return_value.create_worktrees = MagicMock()
+        MockWT.return_value.create_worktrees = MagicMock()
         MockWT.return_value.write_worktree_contracts = MagicMock()
+        from anvil.worktrees import WorktreeValidation
+        MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=[], failed={})
+        MockWT.return_value._is_git_repo.return_value = True
         
         mock_iter = MockTI.return_value
         mock_iter.run = AsyncMock()
@@ -80,7 +84,11 @@ def test_harden_session_creates_harden_md(tmp_repo, tmp_path):
          patch("anvil.orchestrator.Verify") as MockVerify:
         
         MockWT.return_value.create_worktrees = MagicMock()
+        MockWT.return_value.create_worktrees = MagicMock()
         MockWT.return_value.write_worktree_contracts = MagicMock()
+        from anvil.worktrees import WorktreeValidation
+        MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=[], failed={})
+        MockWT.return_value._is_git_repo.return_value = True
         
         mock_iter = MockTI.return_value
         mock_iter.run = AsyncMock()
@@ -117,7 +125,11 @@ def test_harden_session_runs_baseline_verify(tmp_repo, tmp_path):
          patch("anvil.orchestrator.Verify") as MockVerify:
         
         MockWT.return_value.create_worktrees = MagicMock()
+        MockWT.return_value.create_worktrees = MagicMock()
         MockWT.return_value.write_worktree_contracts = MagicMock()
+        from anvil.worktrees import WorktreeValidation
+        MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=[], failed={})
+        MockWT.return_value._is_git_repo.return_value = True
         
         mock_iter = MockTI.return_value
         mock_iter.run = AsyncMock()

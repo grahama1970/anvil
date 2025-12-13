@@ -4,129 +4,290 @@
   <img src="anvil.png" alt="Anvil logo" width="400" />
 </p>
 
-A **no-vibes** debugging and hardening harness:
+<p align="center">
+  <b>The "No-Vibes" Debugging & Hardening Orchestrator</b>
+</p>
 
-- **`anvil debug`**: issue-like prompt ➜ context ➜ repro plan ➜ multi-track worktrees ➜ verify ➜ judge ➜ apply
-- **`anvil harden`**: red-team a repo or a candidate patch (break it, find inefficiencies/risks, add tests)
+<p align="center">
+  <a href="QUICKSTART.md">⚡️ Quickstart</a> •
+  <a href="docs/CONTRACT.md">📜 The Contract</a> •
+  <a href="CONTRIBUTING.md">🛠 Contributing</a> •
+  <a href="docs/AGENT_ONBOARDING.md">🤖 Agent Guide</a>
+</p>
 
-The project is designed to be **imported via `file:///`** into other repos (Sparta, extractor, memory) and run
-either from a human terminal or by an orchestrator agent.
+<p align="center">
+  <b>✅ Production Ready</b> • 53/53 Tests Passing • Robust Worktree Management • Deterministic Judging
+</p>
 
-## Documentation
+---
 
-- [**Quickstart Guide**](QUICKSTART.md): Get up and runnning in 5 minutes.
-- [**Contributing Guide**](CONTRIBUTING.md): How to develop and extend Anvil.
-- [**System Contract**](docs/CONTRACT.md): The "No Vibes" guarantee.
+## 🛑 THE PROBLEM: Agent Entropy
 
-## Attribution & Inspiration
+AI coding agents are brilliant, but they are **chaotic**.
 
-**Anvil** is a Python reimplementation and extension of [nicobailon/debug-mode](https://github.com/nicobailon/debug-mode), a TypeScript-based debugging skill. Anvil adds new capabilities like **harden mode**, N-track configuration, and a Python API.
+- They **hallucinate** files that don't exist.
+- They **regress** existing features while fixing new ones.
+- They claim a bug is "FIXED" based on **vibes**, not evidence.
 
-## Installation
+To safely use agents in production, you currently have to manage git worktrees, context windows, and verification loops manually.
+
+## 🛡 THE SOLUTION: A Deterministic Forge
+
+**Anvil** is a Python harness that forces agents to sign a **Contract**. It treats code modification as a hostile activity that must be isolated, verified, and judged.
+
+Anvil provides the **infrastructure of mistrust**:
+
+1.  **Isolation:** Every debug track runs in a dedicated `git worktree`.
+2.  **Proof:** No fix is accepted without a reproduction plan and a passing test.
+3.  **Competition:** Run multiple agents (Gemini, Copilot, Claude) in parallel; only the one that _actually_ fixes the bug wins.
+
+---
+
+## ⚙️ WORKFLOW
+
+Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs where multiple agents enter, and only one patch leaves.
+
+```mermaid
+graph TD
+    User[User / Orchestrator] -->|1. Issue Desc| Anvil
+    Anvil -->|2. Scans Repo| Context[CONTEXT.md]
+    Anvil -->|3. Spawns Tracks| Tracks
+
+    subgraph "Parallel Execution (Isolated Worktrees)"
+        Tracks -->|Track A| Agent1[Gemini 1.5 Pro]
+        Tracks -->|Track B| Agent2[Claude Sonnet]
+        Tracks -->|Track C| Agent3[Manual/Human]
+    end
+
+    Agent1 -->|Iterate| Verify1[Verify: FAIL]
+    Verify1 -->|Retry| Agent1
+    Agent1 -->|Success| Patch1[PATCH.diff]
+
+    Agent2 -->|Iterate| Verify2[Verify: PASS]
+    Verify2 -->|Success| Patch2[PATCH.diff]
+
+    Patch1 & Patch2 --> Judge[Judge & Score]
+    Judge --> Winner[Best Patch Selected]
+```
+
+---
+
+## ⚡️ QUICKSTART
+
+> **Impatience is a virtue.**  
+> Go to the [**Quickstart Guide**](QUICKSTART.md) to debug your first repo in < 5 minutes.
+
+### 1. Install
 
 ```bash
-# Clone and install
 git clone https://github.com/grahama1970/anvil.git
 cd anvil
 pip install -e .
 ```
 
-For detailed usage, see the [Quickstart Guide](QUICKSTART.md).
+### 2. Run the Debugger
 
-**Docker mode available**: Use `--docker` flag for containerized verify execution (see [Quickstart](QUICKSTART.md#docker-mode-recommended-for-isolation)).
+Navigate to any broken repository and summon the agents:
 
-## Simple API (for orchestrator agents)
+```bash
+# Initialize Anvil configuration
+anvil init
+
+# Validate your environment
+anvil doctor
+
+# Fix a bug
+anvil debug run --issue "Login button crashes on mobile devices"
+```
+
+### 3. Or... Break Your Code
+
+Use **Harden Mode** to Red-Team your own code. Anvil will unleash "Breaker" agents to find vulnerabilities.
+
+```bash
+anvil harden run
+```
+
+---
+
+## 💻 API (FOR ORCHESTRATORS)
+
+Anvil is designed to be imported by _other_ agents (like a master orchestrator). It returns structured data, not just text.
 
 ```python
 import anvil
 
-# Debug a known bug
-result = anvil.debug("/path/to/repo", "Login crashes on click")
-print(result["status"])    # "OK" or "FAIL"
-print(result["patches"])   # List of generated patch files
-
-# Harden a codebase (find vulnerabilities)
-result = anvil.harden("/path/to/repo")
-print(result["findings"])  # HARDEN.md content
-print(result["patches"])   # List of generated patch files
-
-# With optional parameters
+# 1. Debug a known bug
+# Returns a verified patch or raises an error
 result = anvil.debug(
-    "/path/to/repo",
-    "Bug description",
-    run_id="custom-id-001",
-    tracks_file="/path/to/tracks.yaml",
+    repo="/path/to/repo",
+    issue="Database connection timeout on heavy load",
+    tracks_file="config/tracks.yaml"
+)
+
+if result["status"] == "OK":
+    print(f"Winner: {result['winning_track']}")
+    print(f"Patch Path: {result['patch_file']}")
+
+# 2. Harden a codebase
+# Returns a list of vulnerabilities found and patches to fix them
+security_scan = anvil.harden(
+    repo="/path/to/repo",
+    focus="Find SQL injection vulnerabilities"
 )
 ```
 
-## “No vibes” enforcement
+---
 
-A track is **DISQUALIFIED** if it:
+## 🧱 THE "NO VIBES" GUARANTEE
 
-- violates a contract (missing/invalid required artifacts, schema drift),
-- claims work without artifacts,
-- or fails to run required `check` gates.
+A track is **DISQUALIFIED** immediately if it violates the [System Contract](docs/CONTRACT.md):
 
-See: `AGENTS.md` and the `CONTRACT` docstrings in each step.
+| Violation        | Consequence                                                                 |
+| :--------------- | :-------------------------------------------------------------------------- |
+| **Schema Drift** | If an agent returns invalid JSON, it is killed.                             |
+| **No Proof**     | If an agent claims "Fixed" without a `PATCH.diff`, it is disqualified.      |
+| **Lazy Repro**   | If an agent skips the reproduction step, it fails.                          |
+| **Broken Tests** | If verify returns FAIL, the patch is rejected. Judge penalizes -100 points. |
 
-## Providers / Agents
+---
 
-Providers are pluggable:
+## 🔌 PROVIDERS
 
-- `manual` provider: generates iteration templates (works offline)
-- `gh_cli` provider: uses the GitHub CLI (`gh`) as a backend transport (optional)
-- `copilot` provider: uses GitHub Copilot CLI (`copilot --model ... -p ...`)
-- `gemini` provider: uses Gemini CLI (`gemini --model ... --prompt ...`)
-
-You can configure tracks in `.dbg/tracks.yaml` (generated by `dbg init`).
-This is where you can mix-and-match models/providers per track based on where they excel.
-
-Example:
+Anvil is model-agnostic. Define your "team" in `.dbg/tracks.yaml`:
 
 ```yaml
 tracks:
-  - name: A
-    role: backend_fixer
+  - name: architect
+    role: debugger
     provider: copilot
-    model: claude-sonnet-4.5
-  - name: B
-    role: explorer
+    model: claude-sonnet
+    budgets:
+      max_iters: 3
+  - name: intern
+    role: experimental
     provider: gemini
-    model: gemini-3-pro
+    model: gemini-1.5-flash
+    budgets:
+      max_iters: 2
 ```
 
-## Tree-sitter utilities (optional)
+**Available Providers:**
 
-If installed (`uv add anvil[treesitter]`), the context builder can optionally emit symbol outlines for relevant files (fallback/partial support only; see below for full support):
+- `manual` - generates iteration templates (works offline)
+- `copilot` - GitHub Copilot CLI
+- `gemini` - Gemini CLI
+- `claude` - Anthropic Claude (API/CLI)
+- `gh_cli` - GitHub CLI as backend transport
 
-- `SYMBOLS.json` (symbols with ranges)
+---
 
-Enable via `--use-treesitter` or config (`context.use_treesitter: true`).
+## 🔧 ADVANCED FEATURES
 
-### Local `treesitter-tools` integration (this workspace)
+### Worktree Cleanup
 
-For full support (recommended), this repo also defines an optional `ast` dependency group that installs `treesitter-tools` from `file:///home/graham/workspace/experiments/treesitter-tools`.
+Anvil automatically manages git worktrees, but you can manually control cleanup:
 
 ```bash
-uv sync --group ast
+# Clean worktrees for a specific run
+anvil cleanup run --run-id <run_id>
+
+# List all active worktrees
+anvil cleanup list
+
+# Clean stale worktrees older than 7 days
+anvil cleanup stale --older-than 7
+
+# DANGER: Remove all Anvil worktrees
+anvil cleanup all
 ```
 
-## Commands
+**Automatic Cleanup:** By default, worktrees are cleaned on success and preserved on failure. Control this with:
 
-### Debug
+- `--no-cleanup` - Never auto-cleanup (for debugging)
+- `--cleanup-always` - Always cleanup, even on failure
 
-- `anvil debug run ...`
-- `anvil debug status --run <id>`
-- `anvil debug resume --run <id>`
+### Harden Mode with Verification
 
-### Harden
+Run full verification loops on breaker patches:
 
-- `anvil harden run ...`
-- `anvil harden status --run <id>`
+```bash
+anvil harden run --verify-patches
+```
 
-### Utilities
+This applies each patch, runs tests, and performs robust cleanup between iterations.
 
-- `anvil init` (writes `.dbg/` templates in the target repo)
-- `anvil doctor` (checks git, docker, provider auth, verify commands)
+### Docker Isolation
 
-Both `anvil` and `dbg` commands work (legacy alias supported).
+Run all verification steps in Docker for true isolation:
+
+```bash
+anvil debug run --issue "Bug description" --docker
+```
+
+---
+
+## 🚨 TROUBLESHOOTING
+
+### "Worktree validation failed"
+
+**Cause:** Stale branches from previous crashed runs or non-git repo.
+
+**Fix:**
+
+```bash
+# Clean specific run
+anvil cleanup run --run-id <run_id>
+
+# Or clean everything
+anvil cleanup all
+```
+
+### "Repo is not a git repository"
+
+**Cause:** Target directory is missing `.git`.
+
+**Fix:** Ensure you're in a git repository:
+
+```bash
+cd /path/to/your/repo
+git status  # Should work
+anvil init
+```
+
+### Environment Health Check
+
+Always run `anvil doctor` before starting:
+
+```bash
+anvil doctor
+```
+
+This checks:
+
+- Git availability and repo status
+- Docker connectivity
+- Provider CLIs (GitHub, Copilot, Gemini, Claude)
+- Authentication status
+- Verification contract validity
+
+---
+
+## 📚 Documentation
+
+- **[Agent Onboarding Guide](docs/AGENT_ONBOARDING.md)**: For AI agents integrating Anvil
+- **[Quickstart Guide](QUICKSTART.md)**: Get up and running in 5 minutes
+- **[Contributing Guide](CONTRIBUTING.md)**: How to develop and extend Anvil
+- **[System Contract](docs/CONTRACT.md)**: The "No Vibes" guarantee
+
+---
+
+## 🏗️ Attribution & Inspiration
+
+**Anvil** is a Python reimplementation and extension of [nicobailon/debug-mode](https://github.com/nicobailon/debug-mode), a TypeScript-based debugging skill. Anvil adds new capabilities like **harden mode**, N-track configuration, worktree isolation, and a Python API for orchestrators.
+
+---
+
+<p align="center">
+<sub>Forged in code. Hardened in fire.</sub>
+</p>

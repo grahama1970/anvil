@@ -265,6 +265,7 @@ def harden_run(
     candidate_run: str | None = _CANDIDATE_RUN_OPTION,
     candidate_track: str | None = _CANDIDATE_TRACK_OPTION,
     use_docker: bool = _DOCKER_OPTION,
+    verify_patches: bool = typer.Option(False, "--verify-patches", help="Run per-iteration verification."),
 ) -> None:
     rid = validate_run_id(run_id or new_run_id())
     ensure_dir(artifacts_dir)
@@ -282,6 +283,7 @@ def harden_run(
         use_docker=use_docker,
         candidate_run=candidate_run,
         candidate_track=candidate_track,
+        verify_patches=verify_patches,
     )
     result = asyncio.run(run_harden_session(cfg))
     console.print(f"[bold]Harden[/bold] {rid} finished with status: {result.status}")
@@ -301,6 +303,152 @@ def harden_status(
     if not status_path.exists():
         raise typer.BadParameter(f"No status found: {status_path}")
     console.print_json(status_path.read_text(encoding="utf-8"))
+
+
+# Cleanup CLI
+cleanup_app = typer.Typer(add_completion=False, help="Manage and cleanup worktrees.")
+app.add_typer(cleanup_app, name="cleanup")
+
+
+@cleanup_app.command("run")
+def cleanup_run(
+    repo: Path = _REPO_OPTION_PLAIN,
+    run_id: str = _RUN_ID_REQUIRED_OPTION,
+    artifacts_dir: Path = _ARTIFACTS_DIR_OPTION_ROOT,
+) -> None:
+    """Clean up worktrees for a specific run."""
+    from .worktrees import WorktreeManager
+    from .artifacts.store import ArtifactStore
+    
+    validate_run_id(run_id)
+    store = ArtifactStore(artifacts_dir / run_id)
+    wt = WorktreeManager(repo, store)
+    
+    # Identify tracks from worktree directory structure
+    # We can't trust tracks.yaml or RUN.json to exist if run crashed early, 
+    # so we look at actual directories on disk.
+    wt_root = wt._worktrees_root()
+    if not wt_root.exists():
+        console.print(f"[yellow]No worktrees found for run {run_id}[/yellow]")
+        return
+        
+    tracks = [
+        d.name for d in wt_root.iterdir() 
+        if d.is_dir() and (d / ".git").exists()
+    ]
+    
+    if not tracks:
+         # Maybe directories exist but not valid worktrees?
+         # Just listing dirs is safer to attempt cleanup on everything
+         tracks = [d.name for d in wt_root.iterdir() if d.is_dir()]
+
+    if not tracks:
+        console.print(f"[yellow]No worktree directories found for run {run_id}[/yellow]")
+        return
+
+    console.print(f"Cleaning worktrees for run {run_id}: {tracks}")
+    wt.cleanup(tracks)
+    console.print("[green]Done[/green]")
+
+
+@cleanup_app.command("all")
+def cleanup_all(
+    repo: Path = _REPO_OPTION_PLAIN,
+    artifacts_dir: Path = _ARTIFACTS_DIR_OPTION_ROOT,
+) -> None:
+    """Clean ALL anvil worktrees (destructive)."""
+    from .worktrees import WorktreeManager
+    from .artifacts.store import ArtifactStore
+    
+    # Dummy store to init manager
+    store = ArtifactStore(artifacts_dir / "dummy")
+    wt = WorktreeManager(repo, store)
+    
+    root = wt._all_worktrees_root()
+    if not root.exists():
+        console.print("No worktrees root found.")
+        return
+        
+    runs = [d.name for d in root.iterdir() if d.is_dir()]
+    if not runs:
+        console.print("No runs found in worktrees.")
+        return
+        
+    if not typer.confirm(f"This will remove worktrees for {len(runs)} runs. Are you sure?"):
+        raise typer.Abort()
+        
+    count = 0
+    for run_id in runs:
+        # Re-init manager for specific run to get correct paths/branches
+        r_store = ArtifactStore(artifacts_dir / run_id)
+        r_wt = WorktreeManager(repo, r_store)
+        
+        r_root = r_wt._worktrees_root()
+        if r_root.exists():
+            tracks = [d.name for d in r_root.iterdir() if d.is_dir()]
+            if tracks:
+                r_wt.cleanup(tracks)
+                count += 1
+                
+    console.print(f"[green]Cleaned worktrees for {count} runs.[/green]")
+
+
+@cleanup_app.command("stale")
+def cleanup_stale(
+    repo: Path = _REPO_OPTION_PLAIN,
+    artifacts_dir: Path = _ARTIFACTS_DIR_OPTION_ROOT,
+    older_than: int = typer.Option(7, "--older-than", help="Days threshold"),
+) -> None:
+    """Clean stale worktrees older than N days."""
+    from .worktrees import WorktreeManager
+    from .artifacts.store import ArtifactStore
+    
+    store = ArtifactStore(artifacts_dir / "dummy")
+    wt = WorktreeManager(repo, store)
+    
+    count = wt.cleanup_stale_worktrees(older_than_days=older_than)
+    if count > 0:
+        console.print(f"[green]Removed {count} stale worktrees/tracks[/green]")
+    else:
+        console.print("No stale worktrees found.")
+
+
+@cleanup_app.command("list")
+def cleanup_list(
+    repo: Path = _REPO_OPTION_PLAIN,
+    artifacts_dir: Path = _ARTIFACTS_DIR_OPTION_ROOT,
+) -> None:
+    """List all anvil worktrees."""
+    from .worktrees import WorktreeManager
+    from .artifacts.store import ArtifactStore
+    
+    store = ArtifactStore(artifacts_dir / "dummy")
+    wt = WorktreeManager(repo, store)
+    
+    root = wt._all_worktrees_root()
+    if not root.exists():
+        console.print("No worktrees found.")
+        return
+        
+    table = Table(title="Anvil Worktrees")
+    table.add_column("Run ID")
+    table.add_column("Track")
+    table.add_column("Path")
+    
+    found_any = False
+    for run_dir in root.iterdir():
+        if not run_dir.is_dir():
+             continue
+        run_id = run_dir.name
+        for t_dir in run_dir.iterdir():
+            if t_dir.is_dir():
+                table.add_row(run_id, t_dir.name, str(t_dir))
+                found_any = True
+                
+    if found_any:
+        console.print(table)
+    else:
+        console.print("No worktrees found.")
 
 
 if __name__ == "__main__":

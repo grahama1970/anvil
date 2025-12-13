@@ -49,6 +49,10 @@ def test_resume_logic_skips_run(tmp_path):
             MockVerify.return_value.check.return_value = 0
             MockJudge.return_value.run.return_value.winner = None # No winner -> DONE
             MockJudge.return_value.check.return_value = 0
+            
+            # Mock validation
+            from anvil.worktrees import WorktreeValidation
+            MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=["test_run"], failed={})
 
             # Run session
             res = asyncio.run(run_debug_session(args))

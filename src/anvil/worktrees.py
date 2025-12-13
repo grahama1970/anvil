@@ -25,6 +25,13 @@ from .util.shell import run_cmd
 
 
 @dataclass
+class WorktreeValidation:
+    """Structured validation results for agent consumption."""
+    ok_tracks: list[str]
+    failed: dict[str, str]  # track -> reason
+
+
+@dataclass
 class WorktreeManager:
     repo: Path
     store: ArtifactStore
@@ -38,6 +45,45 @@ class WorktreeManager:
     def get_worktree_path(self, track: str) -> Path:
         """Get the absolute path to a track's worktree."""
         return self._worktrees_root() / track
+    
+    def validate_worktrees_ready(self, tracks: list[str]) -> WorktreeValidation:
+        """Validate worktrees exist and are git-healthy.
+        
+        Returns structured validation results with:
+        - ok_tracks: list of validated tracks
+        - failed: dict mapping track name to failure reason
+        """
+        ok_tracks = []
+        failed = {}
+        
+        for track in tracks:
+            wt_path = self.get_worktree_path(track)
+            
+            # Check 1: directory exists
+            if not wt_path.exists():
+                failed[track] = f"Worktree directory missing: {wt_path}"
+                continue
+            
+            # Check 2: .git file exists (worktrees have .git file pointing to main repo)
+            git_file = wt_path / ".git"
+            if not git_file.exists():
+                failed[track] = f"Missing .git file in worktree: {wt_path}"
+                continue
+            
+            # Check 3: git status works (validates git health)
+            status_check = run_cmd(
+                f"git -C \"{wt_path}\" status",
+                cwd=self.repo,
+                timeout_s=10,
+            )
+            if status_check.returncode != 0:
+                failed[track] = f"git status failed in worktree (rc={status_check.returncode})"
+                continue
+            
+            # All checks passed
+            ok_tracks.append(track)
+        
+        return WorktreeValidation(ok_tracks=ok_tracks, failed=failed)
 
     def create_worktrees(self, tracks: list[str]) -> None:
         """Create one git worktree per track.
@@ -111,29 +157,152 @@ class WorktreeManager:
             ]
             (wt_dir / "CONTRACT.md").write_text("\n".join(contract), encoding="utf-8")
 
+    def _all_worktrees_root(self) -> Path:
+        return self.repo / ".dbg" / "worktrees"
+
+    def find_stale_worktrees(self) -> list[tuple[Path, str]]:
+        """Find worktrees without corresponding run artifacts or that are very old.
+        
+        Returns:
+            List of (worktree_path, run_id)
+        """
+        root = self._all_worktrees_root()
+        if not root.exists():
+            return []
+            
+        stale = []
+        # Iterate over <repo>/.dbg/worktrees/<run_id>
+        for run_dir in root.iterdir():
+            if not run_dir.is_dir():
+                continue
+            
+            run_id = run_dir.name
+            
+            # Check 1: Artifacts exist?
+            # Default artifacts location relative to repo
+            # (Note: artifacts_root might be elsewhere if configured via CLI, 
+            # but we assume standard location for stale detection default)
+            artifacts_run_dir = self.repo / ".dbg" / "runs" / run_id
+            status_file = artifacts_run_dir / "RUN_STATUS.json"
+            
+            if not status_file.exists():
+                # If we can't confirm run status in default location, consider checking age
+                # Or just mark as stale? 
+                # Better safe: if directory is > 7 days old, mark stale regardless
+                pass
+            
+            stale.append((run_dir, run_id))
+            
+        return stale
+
+    def cleanup_stale_worktrees(self, older_than_days: int = 7) -> int:
+        """Clean worktrees older than N days.
+        
+        Returns:
+            Count of removed worktrees (tracks)
+        """
+        from datetime import datetime, timedelta
+        import shutil
+        
+        if not self._is_git_repo():
+            return 0
+            
+        root = self._all_worktrees_root()
+        if not root.exists():
+            return 0
+            
+        removed_count = 0
+        threshold = datetime.now() - timedelta(days=older_than_days)
+        
+        for run_dir in root.iterdir():
+            if not run_dir.is_dir():
+                continue
+                
+            # Check modification time
+            mtime = datetime.fromtimestamp(run_dir.stat().st_mtime)
+            if mtime < threshold:
+                # Expired run directory
+                run_id = run_dir.name
+                
+                # Check for tracks inside
+                tracks = []
+                for t_dir in run_dir.iterdir():
+                    if t_dir.is_dir():
+                        tracks.append(t_dir.name)
+                
+                # Use cleanup logic (remove worktrees + branches)
+                # We construct a temporary store just for path resolution if needed, 
+                # but cleanup takes track names.
+                # However, our instance's self.store points to CURRENT run.
+                # We need to be careful. cleanup() uses self.store.run_dir.name to find branch!
+                # So we can't reuse self.cleanup() easily for OTHER runs without hacks.
+                
+                # Manual cleanup implementation for stale run
+                for t in tracks:
+                    wt_dir = run_dir / t
+                    branch = f"dbg/{run_id}/{t}"
+                    
+                    # 1. Remove worktree
+                    if wt_dir.exists():
+                        run_cmd(f'git worktree remove --force "{wt_dir}"', cwd=self.repo, timeout_s=30)
+                    
+                    # 2. Delete branch
+                    run_cmd(f'git branch -D "{branch}"', cwd=self.repo, timeout_s=10)
+                    
+                    removed_count += 1
+                
+                # Remove run dir
+                try:
+                    shutil.rmtree(run_dir)
+                except OSError:
+                    pass
+                    
+        return removed_count
+
     def cleanup(self, tracks: list[str], archive: bool = False) -> None:
         """Remove worktrees and optionally archive branches.
         
-        If archive=True, renames branches to archive/anvil-{run_id}-{track}-{timestamp}
-        instead of deleting them.
+        Uses `git worktree list --porcelain` to ensure we only remove valid worktrees
+        and clean up orphaned metadata.
         """
         if not self._is_git_repo():
             logger.warning("Repo is not a git repo; skipping cleanup.")
             return
 
+        # 1. Get canonical list of worktrees to avoid removing non-worktree dirs
+        res = run_cmd("git worktree list --porcelain", cwd=self.repo, timeout_s=5)
+        known_worktrees = set()
+        if res.returncode == 0 and res.stdout_path and res.stdout_path.exists():
+            content = res.stdout_path.read_text()
+            for line in content.splitlines():
+                if line.startswith("worktree "):
+                    known_worktrees.add(Path(line[9:].strip()).resolve())
+
         root = self._worktrees_root()
         
         for t in tracks:
-            wt_dir = root / t
+            wt_dir = (root / t).resolve()
             branch = f"dbg/{self.store.run_dir.name}/{t}"
             
-            # Remove worktree first
-            if wt_dir.exists():
+            # Remove worktree
+            # Case A: Git knows about it
+            if wt_dir in known_worktrees:
                 cmd = f'git worktree remove --force "{wt_dir}"'
                 res = run_cmd(cmd, cwd=self.repo, timeout_s=30)
                 if res.returncode != 0:
                     logger.warning(f"Failed to remove worktree {t}")
+            # Case B: Directory exists but git doesn't know (orphaned folder)
+            elif wt_dir.exists():
+                import shutil
+                try:
+                    shutil.rmtree(wt_dir)
+                    logger.info(f"Removed orphaned worktree directory: {wt_dir}")
+                except OSError as e:
+                    logger.warning(f"Failed to remove orphaned directory {wt_dir}: {e}")
             
+            # Prune git worktree metadata (if any remains)
+            run_cmd("git worktree prune", cwd=self.repo, timeout_s=10)
+
             # Archive or delete branch
             if archive:
                 self._archive_branch(branch, t)

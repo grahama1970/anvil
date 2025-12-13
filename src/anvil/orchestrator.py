@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
 from pathlib import Path
 
+from loguru import logger
+
 from .artifacts.schemas import RunMeta, RunStatus
 from .artifacts.store import ArtifactStore
 from .collab.blackboard import Blackboard
@@ -146,6 +148,9 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
     store.ensure()
     ev = EventLog(store.path("events.jsonl"))
 
+    tracks: list[TrackConfig] = []
+    wt: WorktreeManager | None = None
+
     try:
         # Resume logic
         existing_status = None
@@ -188,11 +193,49 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
         else:
             ev.emit(stage="resume", action="load_state", run_id=cfg.run_id)
 
-        # Setup worktrees (best effort)
-        # Idempotent
+        # Setup worktrees (best effort creation, then validate)
         ev.emit(stage="setup", action="worktrees_create")
         wt.create_worktrees([t.name for t in tracks])
         wt.write_worktree_contracts(tracks)
+        
+        # Validate worktrees with actionable diagnostics
+        validation = wt.validate_worktrees_ready([t.name for t in tracks])
+        if validation.failed:
+            # Build actionable error message
+            error_lines = ["Worktree validation failed. Actionable diagnostics:"]
+            for track, reason in validation.failed.items():
+                error_lines.append(f"  - Track '{track}': {reason}")
+            
+            # Check if it's a git repo issue
+            if not wt._is_git_repo():
+                error_lines.append("")
+                error_lines.append("Root cause: Repo is not a git repository.")
+                error_lines.append(f"Solution: Ensure {cfg.repo_path} is a valid git repo.")
+            else:
+                # Likely branch conflict or git command failure
+                error_lines.append("")
+                error_lines.append(f"Possible causes:")
+                error_lines.append(f"  - Branches dbg/{cfg.run_id}/<track> already exist from stale runs")
+                error_lines.append(f"  - Git worktree command failed")
+                error_lines.append("")
+                error_lines.append(f"Solutions:")
+                error_lines.append(f"  - Run: anvil cleanup run --run-id {cfg.run_id}")
+                error_lines.append(f"  - Check logs in: {store.path('logs')}")
+            
+            error_msg = "\n".join(error_lines)
+            logger.error(error_msg)
+            store.write_text("WORKTREE_VALIDATION_ERROR.txt", error_msg)
+            store.write_status(
+                RunStatus(
+                    run_id=cfg.run_id, 
+                    mode=cfg.mode, 
+                    status="FAIL", 
+                    message=f"worktree validation failed: {len(validation.failed)} tracks"
+                )
+            )
+            return RunResult(status="FAIL", run_dir=store.run_dir)
+
+        ev.emit(stage="setup", action="worktrees_validated", ok_tracks=len(validation.ok_tracks))
 
         # Steps - Skip if artifacts allow
         # ContextBuilder checks if CONTEXT.md exists internally? No, we should check here to skip.
@@ -328,21 +371,77 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
                     if patch_path.exists():
                         wt_path = wt.get_worktree_path(t.name)
                         try:
-                            # 1. Apply patch
+                            # Safety check: verify we're in the correct worktree
+                            if not wt_path.exists():
+                                ev.emit(
+                                    stage="iterate",
+                                    track=t.name,
+                                    iter=iteration,
+                                    action="verify_skip",
+                                    reason="worktree_missing",
+                                )
+                                continue
+                            
+                            # Verify it's a git repo
+                            git_check = run_cmd(
+                                "git rev-parse --show-toplevel",
+                                cwd=wt_path,
+                                timeout_s=5,
+                            )
+                            if git_check.returncode != 0:
+                                ev.emit(
+                                    stage="iterate",
+                                    track=t.name,
+                                    iter=iteration,
+                                    action="verify_skip",
+                                    reason="not_git_repo",
+                                )
+                                continue
+                            
+                            # 1. Check patch before applying
+                            check_cmd = f'git apply --check "{patch_path}"'
+                            check_res = run_cmd(check_cmd, cwd=wt_path, timeout_s=30)
+                            
+                            if check_res.returncode != 0:
+                                ev.emit(
+                                    stage="iterate",
+                                    track=t.name,
+                                    iter=iteration,
+                                    action="verify_skip",
+                                    reason="patch_check_failed",
+                                )
+                                continue
+                            
+                            # 2. Apply patch
                             apply_cmd = f'git apply --whitespace=nowarn "{patch_path}"'
                             apply_res = run_cmd(apply_cmd, cwd=wt_path, timeout_s=30)
                             
                             if apply_res.returncode == 0:
-                                # 2. Run Verify
+                                # 3. Run Verify with docker flag
                                 iter_store = ArtifactStore(store.path("tracks", t.name, f"iter_{iteration:02d}"))
-                                Verify().run(iter_store, wt_path)
+                                Verify().run(iter_store, wt_path, use_docker=cfg.use_docker)
                             
-                            # 3. Revert (clean up worktree for next iteration)
-                            # We assume next iteration starts from clean state + potentially previous valid patch?
-                            # Current Anvil doesn't support cumulative patches in loop yet (stateless iterations).
-                            run_cmd("git checkout .", cwd=wt_path)
-                        except Exception:
-                            pass
+                            # 4. Robust cleanup (reset + clean untracked files)
+                            # Safety: verify we're still in correct directory
+                            verify_res = run_cmd(
+                                "git rev-parse --show-toplevel",
+                                cwd=wt_path,
+                                timeout_s=5,
+                            )
+                            if verify_res.returncode == 0:
+                                # Reset tracked changes
+                                run_cmd("git reset --hard", cwd=wt_path, timeout_s=30)
+                                # Clean untracked files (but preserve .dbg/ if it exists)
+                                run_cmd("git clean -fd", cwd=wt_path, timeout_s=30)
+                        except Exception as e:
+                            ev.emit(
+                                stage="iterate",
+                                track=t.name,
+                                iter=iteration,
+                                action="verify_error",
+                                error=str(e),
+                            )
+
                     
                     chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=iteration)
                     if chk != 0:
@@ -443,6 +542,20 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
             RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="FAIL", message=f"crash: {exc}")
         )
         return RunResult(status="FAIL", run_dir=store.run_dir)
+    finally:
+        # Automatic cleanup
+        if wt and tracks and not cfg.no_cleanup:
+            try:
+                # Cleanup if success or forced
+                # Read latest status from store to be sure
+                latest_status = store.read_status()
+                is_success = latest_status and latest_status.status in ("OK", "DONE")
+                
+                if is_success or cfg.cleanup_always:
+                    ev.emit(stage="cleanup", action="run")
+                    wt.cleanup([t.name for t in tracks])
+            except Exception as e:
+                logger.warning(f"Auto-cleanup failed: {e}")
 
 
 async def run_harden_session(cfg: RunConfig) -> RunResult:
@@ -454,6 +567,9 @@ async def run_harden_session(cfg: RunConfig) -> RunResult:
     store = ArtifactStore(cfg.run_dir())
     store.ensure()
     ev = EventLog(store.path("events.jsonl"))
+    
+    tracks: list[TrackConfig] = []
+    wt: WorktreeManager | None = None
 
     try:
         tracks, use_ts, max_files = _load_tracks(cfg)
@@ -500,6 +616,40 @@ async def run_harden_session(cfg: RunConfig) -> RunResult:
         wt = WorktreeManager(repo=cfg.repo_path, store=store)
         wt.create_worktrees([t.name for t in tracks])
         wt.write_worktree_contracts(tracks)
+        
+        # Validate worktrees with actionable diagnostics
+        validation = wt.validate_worktrees_ready([t.name for t in tracks])
+        if validation.failed:
+            error_lines = ["Worktree validation failed. Actionable diagnostics:"]
+            for track, reason in validation.failed.items():
+                error_lines.append(f"  - Track '{track}': {reason}")
+            
+            if not wt._is_git_repo():
+                error_lines.append("")
+                error_lines.append("Root cause: Repo is not a git repository.")
+                error_lines.append(f"Solution: Ensure {cfg.repo_path} is a valid git repo.")
+            else:
+                error_lines.append("")
+                error_lines.append(f"Possible causes:")
+                error_lines.append(f"  - Branches dbg/{cfg.run_id}/<track> already exist from stale runs")
+                error_lines.append(f"  - Git worktree command failed")
+                error_lines.append("")
+                error_lines.append(f"Solutions:")
+                error_lines.append(f"  - Run: anvil cleanup run --run-id {cfg.run_id}")
+                error_lines.append(f"  - Check logs in: {store.path('logs')}")
+            
+            error_msg = "\n".join(error_lines)
+            logger.error(error_msg)
+            store.write_text("WORKTREE_VALIDATION_ERROR.txt", error_msg)
+            store.write_status(
+                RunStatus(
+                    run_id=cfg.run_id, 
+                    mode=cfg.mode, 
+                    status="FAIL", 
+                    message=f"worktree validation failed: {len(validation.failed)} tracks"
+                )
+            )
+            return RunResult(status="FAIL", run_dir=store.run_dir)
         
         # Step 4: Create harden-specific blackboard with baseline info
         harden_blackboard = [
@@ -551,6 +701,27 @@ async def run_harden_session(cfg: RunConfig) -> RunResult:
                         iteration=iteration,
                         provider=provider,
                     )
+
+                    # Optional: Verify patch if configured
+                    if cfg.verify_patches:
+                        patch_path = store.path("tracks", t.name, f"iter_{iteration:02d}", "PATCH.diff")
+                        if patch_path.exists():
+                            wt_path = wt.get_worktree_path(t.name)
+                            try:
+                                # 1. Apply patch
+                                apply_cmd = f'git apply --whitespace=nowarn "{patch_path}"'
+                                apply_res = run_cmd(apply_cmd, cwd=wt_path, timeout_s=30)
+                                
+                                if apply_res.returncode == 0:
+                                    # 2. Run Verify
+                                    iter_store = ArtifactStore(store.path("tracks", t.name, f"iter_{iteration:02d}"))
+                                    Verify().run(iter_store, wt_path, use_docker=cfg.use_docker)
+                                
+                                # 3. Robust Cleanup
+                                run_cmd("git reset --hard", cwd=wt_path)
+                                run_cmd("git clean -fd", cwd=wt_path)
+                            except Exception as e:
+                                logger.warning(f"Harden verification failed for {t.name}: {e}")
                     
                     # Check iteration result
                     chk = iter_step.check(store, cfg.repo_path, track=t.name, iteration=iteration)
@@ -661,4 +832,17 @@ async def run_harden_session(cfg: RunConfig) -> RunResult:
             RunStatus(run_id=cfg.run_id, mode=cfg.mode, status="FAIL", message=f"crash: {exc}")
         )
         return RunResult(status="FAIL", run_dir=store.run_dir)
+    finally:
+        # Automatic cleanup
+        if wt and tracks and not cfg.no_cleanup:
+            try:
+                # Cleanup if success or forced
+                latest_status = store.read_status()
+                is_success = latest_status and latest_status.status in ("OK", "DONE")
+                
+                if is_success or cfg.cleanup_always:
+                    ev.emit(stage="cleanup", action="run")
+                    wt.cleanup([t.name for t in tracks])
+            except Exception as e:
+                logger.warning(f"Auto-cleanup failed: {e}")
 

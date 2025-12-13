@@ -45,7 +45,7 @@ async def _async_diagram_flow(tmp_path):
 
     # Mock Dependencies
     with patch("anvil.orchestrator.TrackIterate") as MockStep, \
-         patch("anvil.orchestrator.WorktreeManager"), \
+         patch("anvil.orchestrator.WorktreeManager") as MockWT, \
          patch("anvil.orchestrator.Verify"), \
          patch("anvil.orchestrator.ReproPlan") as MockReproPlan, \
          patch("anvil.orchestrator.ContextBuilder") as MockCTX, \
@@ -56,6 +56,11 @@ async def _async_diagram_flow(tmp_path):
         MockCTX.return_value.check.return_value = 0
         MockReproPlan.return_value.check.return_value = 0
         
+        # Configure WorktreeManager
+        from anvil.worktrees import WorktreeValidation
+        MockWT.return_value.validate_worktrees_ready.return_value = WorktreeValidation(ok_tracks=["track_conservative", "track_refactor"], failed={})
+        MockWT.return_value._is_git_repo.return_value = True
+
         # Configure Step Execution
         MockStep.return_value.run = AsyncMock(side_effect=mock_agent_execution)
         MockStep.return_value.check.return_value = 0

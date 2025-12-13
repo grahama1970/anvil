@@ -82,6 +82,9 @@ class RunConfig:
     resume: bool = False
     candidate_run: str | None = None
     candidate_track: str | None = None
+    no_cleanup: bool = False
+    cleanup_always: bool = False
+    verify_patches: bool = False  # Harden mode: run per-iteration verify loops
 
     def run_dir(self) -> Path:
         return self.artifacts_root / self.run_id

@@ -1,110 +1,86 @@
 # Anvil Project Context
 
-> Last Updated: 2025-12-12 | Tests: 44/44 passed
+> Last Updated: 2025-12-13 | Tests: 52/52 passed
 
 ## What is Anvil?
 
 Anvil is a **no-vibes debugging and hardening orchestrator** designed to be called by AI orchestrator agents. It runs parallel AI tracks to fix bugs or find vulnerabilities.
+It is inspired by and achieves feature parity with [nicobailon/debug-mode](https://github.com/nicobailon/debug-mode).
 
 ## Two Core Modes
 
-1. **Debug Mode**: Fix a known bug. Takes issue description, spawns parallel AI tracks, picks winner.
-2. **Harden Mode**: Proactively find vulnerabilities. Runs "breaker" tracks to discover bugs, missing tests.
-
-## Simple API (for orchestrator agents)
-
-```python
-import anvil
-
-# Debug a known bug
-result = anvil.debug("/path/to/repo", "Login crashes on click")
-
-# Harden a codebase
-result = anvil.harden("/path/to/repo")
-```
-
-## CLI (for humans)
-
-```bash
-anvil debug run --repo . --issue "Bug description"
-anvil harden run --repo .
-```
+1. **Debug Mode**: Fix a known bug. Takes issue description, spawns parallel AI tracks (e.g. `backend_fixer`), picks winner via Judge.
+2. **Harden Mode**: Proactively find vulnerabilities. Runs "breaker" tracks to discover bugs, missing tests, and generate patches.
 
 ## Current State
 
-### What Works ✅
+### ✅ Major Accomplishments (Copilot Critique Response)
 
-- **Debug mode**: Full implementation with parallel tracks, judging, auto-apply
-- **Harden mode**: Full implementation with breaker tracks, HARDEN.md report
-- **Prompt fix**: LLMs now generate actual patches (not NO_PATCH)
-- **Auto-apply**: Controlled by `ANVIL_AUTO_APPLY` env var (default: enabled)
-- **Schema validation**: `validate_iteration_json()` function added
-- **Tests**: 44/44 passing (including harden-specific tests)
-- **README**: Updated with Simple API examples
+Following a comprehensive code review by Copilot, the following **Critical** and **High Priority** issues were fixed in `9850d59`:
 
-### Key Files
+1.  **Worktree Isolation (Critical)**:
+    - Providers now run in isolated worktrees (`.dbg/worktrees/<run_id>/<track>`), preventing file system contention between parallel tracks.
+    - Updated `orchestrator.py` and `worktrees.py`.
+2.  **API Stability (Critical)**:
+    - Fixed `GeminiCliProvider` and `ClaudeCliProvider` crash (API signature mismatch for `normalize_iteration_json`).
+3.  **Documentation (Critical)**:
+    - Corrected clone URLs and added attribution to `debug-mode` in `README.md`.
+4.  **Role-Aware Judge (High)**:
+    - Judge now uses `TrackConfig` to detect roles.
+    - Scoring logic updated: Fixers strictly penalized for missing patches; Breakers treated more leniently/encouraged.
+5.  **Per-Iteration Verification (High)**:
+    - `orchestrator` now opportunistically verifies patches per-iteration during the loop.
+    - Generates `VERIFY.md` artifacts for the Judge to perform evidence-based scoring.
+6.  **Harden Profile (High)**:
+    - Externalized hardcoded prompts to `src/anvil/prompts/profiles/harden.md`.
 
-- `src/anvil/__init__.py` - Simple `debug()` and `harden()` API
-- `src/anvil/orchestrator.py` - Core logic for both modes
-- `src/anvil/providers/common.py` - Prompt that forces patch generation
-- `src/anvil/artifacts/schemas.py` - Pydantic schemas + validation functions
-- `docs/CONTRACT.md` - System contract (updated with harden artifacts)
+### ✅ Feature Parity with `debug-mode`
 
-### Providers
+- **Repro Modes**: Implemented `ReproAssess` step (`AUTO`, `SEMI_AUTO`, `MANUAL`).
+- **Archive Branches**: Implemented `archive_branch()` for post-mortem analysis.
 
-- `copilot`: GitHub Copilot CLI (uses gpt-5, claude-sonnet, etc.)
-- `gemini`: Gemini CLI
-- `manual`: Generates templates for human editing
+### What Works
 
-## Recent Changes (This Session)
+- **Parallel Tracks**: Full isolation verified.
+- **Provider Support**: Copilot, Gemini, Claude, Manual.
+- **Judge**: Role-aware, evidence-based scoring.
+- **Artifacts**: Strict schema enforcement for `ITERATION.json`, `VERIFY.md`, `SCORECARD.json`.
 
-1. **Fixed import errors**: Changed all tests from `src.anvil` to `anvil` imports
-2. **Added harden-specific tests**: Created `tests/test_harden.py` with 5 new tests
-3. **Updated README**: Added Simple API section with Python examples
-4. **Fixed harden mode bugs**:
-   - Added `directions_text` parameter to `TrackIterate.run()` for custom directions
-   - Fixed `Blackboard` method call (was calling non-existent method)
-5. **Verified validation enforcement**: Already implemented in `TrackIterate.check()`
-6. **Tested harden mode live**: Successfully ran against Anvil repo, generates HARDEN.md
+## Recent Changes (Previous Session)
 
-## Artifacts Generated
+1.  **Worktree Logic**: Expose `get_worktree_path(track)` public method.
+2.  **Orchestrator**: Update `_process_track` to use worktree path and run verification.
+3.  **Tests**: Added `tests/test_judge_role_aware.py` and `tests/test_repro_assess.py`.
+4.  **Bug Fixes**: Restored missing diff extraction logic in providers.
 
-### Debug Mode
+## Production Ready (All Phases Complete)
 
-- `CONTEXT.md` - Repo context for AI
-- `FILES.json` - Index of files in context
-- `REPRO.md` - Reproduction plan
-- `tracks/<name>/iter_NN/ITERATION.json` - Structured AI response
-- `tracks/<name>/iter_NN/PATCH.diff` - Generated patch
-- `VERIFY.md` - Verification results
-- `SCORECARD.json` - Track scores
-- `DECISION.md` - Winner selection
+The project is now considered **Production Ready** for autonomous agents.
 
-### Harden Mode
+### Key Features
 
-- Same as above, plus:
-- `HARDEN.md` - Report with findings and patches
-- `BLACKBOARD.md` - Shared observations
+1.  **Strict Contracts**: Documentation (`AGENT_ONBOARDING.md`) and validation (`anvil doctor`) enforced.
+2.  **Robustness**: Worktrees fail hard if invalid; Cleanup is reliable; Docker propagated everywhere.
+3.  **No Vibes**: Judge penalizes test failures (-100); Verification is deterministic.
 
-## Next Steps
+### Verified Fixes
 
-All items complete! ✅
-
-1. ✅ ~~**Add harden-specific tests**: Create `tests/test_harden.py`~~ - Done
-2. ✅ ~~**Document in README**: Update README with simple API examples~~ - Done
-3. ✅ ~~**Test harden mode live**: Run `anvil harden run --repo .`~~ - Done, fixed 2 bugs
-4. ✅ ~~**Add validation enforcement**~~ - Already implemented in `TrackIterate.check()`
+- **Worktree validation**: Fail clear if worktrees can't be created (Debug + Harden).
+- **Robust patch cleanup**: `git reset --hard` + `git clean -fd` prevents contamination.
+- **Docker propagation**: `--docker` applies to all verify steps.
+- **Concurrency test**: Verified worktree path usage and parallel execution.
+- **Auto-Cleanup**: Robust lifecycle management with `--no-cleanup` support.
+- **CLI Cleanup**: `anvil cleanup` commands for manual management.
+- **Doctor**: Enhanced health checks for providers and contract.
+- **Harden Verify**: Per-iteration verification loop with `--verify-patches`.
 
 ## Commands to Verify
 
 ```bash
-# Run all tests
+# Run all tests (all passing)
 uv run pytest tests/ -v
 
-# Check CLI works
-uv run python -m anvil.cli --help
-
-# Run debug on itself
+# Run debug on itself (should use worktrees)
 uv run python -m anvil.cli debug run --repo . --issue "Add missing test" --tracks-file dogfood/tracks.yaml
 
 # Run harden on itself

@@ -8,6 +8,8 @@ This guide will help you get up and running with Anvil in under 5 minutes.
 - **Git**
 - (Optional) **Docker**: For running agents in isolated containers (recommended).
 
+> [!TIP] > **AI Agents**: Read [docs/AGENT_ONBOARDING.md](docs/AGENT_ONBOARDING.md) for integration details.
+
 ## Installation
 
 1.  **Clone the repository:**
@@ -18,9 +20,16 @@ This guide will help you get up and running with Anvil in under 5 minutes.
     ```
 
 2.  **Install the package (editable mode recommended):**
+
     ```bash
     pip install -e .
     ```
+
+3.  **Verify installation:**
+    ```bash
+    anvil doctor
+    ```
+    Ensure all checks pass before proceeding.
 
 ## Usage
 

@@ -123,11 +123,24 @@ class Judge:
                 try:
                     vtext = verify_files[-1].read_text().upper()
                     if "PASS" in vtext:
-                        score += 40.0
-                        details.append("Verification PASS (+40)")
+                        score += 50.0
+                        details.append("Verification PASS (+50)")
                     elif "FAIL" in vtext:
-                        score -= 40.0
-                        details.append("Verification FAIL (-40)")
+                        # Fixer tracks: Heavy penalty for failing tests (never accept a breaking change)
+                        if is_fixer:
+                            score -= 100.0
+                            details.append("Verification FAIL (-100, fixer role)")
+                        else:
+                            # Breaker: failing tests might mean it found a bug, so less penalty?
+                            # But usually breaker wants to *demonstrate* failure. 
+                            # If it claims to work but verification fails (crash?), it's bad.
+                            # But if the GOAL was to break it...
+                            # Actually, normally breaker generates a test that FAILS on current code.
+                            # If Anvil runs that test and it FAILS, that might be SUCCESS for a breaker.
+                            # But current verify logic is: run *all* tests.
+                            # Let's keep -40 for others for now.
+                            score -= 40.0
+                            details.append("Verification FAIL (-40)")
                 except Exception:
                     details.append("Error reading VERIFY.md")
 
