@@ -47,51 +47,46 @@ Anvil provides the **infrastructure of mistrust**:
 
 Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs where multiple agents enter, and only one patch leaves.
 
-```mermaid
-flowchart TD
-    %% Nodes
-    User(["User / Orchestrator"])
-    Anvil{"Anvil Engine"}
-    Context("CONTEXT.md")
-    Judge["Judge & Score"]
-    Winner(["Best Patch Selected"])
-    Dispatcher(("Tracks"))
+### 1. High-Level Architecture
 
+The macro flow: User requests a fix, Anvil scans context, and spawns the **Thunderdome**.
+
+```mermaid
+flowchart LR
     %% Styles
     classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
     classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
     classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
-    classDef fail fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#000
 
-    %% Main Flow
-    User:::actor -->|"Issue"| Anvil:::process
+    User(["User / Orchestrator"]):::actor -->|"Issue"| Anvil{"Anvil Engine"}:::process
     Anvil -->|"Smart Scan (AST)"| Context("CONTEXT.md"):::process
-    Anvil -->|"Spawn"| Tracks(("Parallel Tracks")):::process
+    Anvil -->|"Spawn"| Thunderdome(("The Thunderdome")):::process
+    Thunderdome -->|"Collect Results"| Judge["Judge & Score"]:::decision
+    Judge -->|"Select"| Winner(["Best Patch"])
+```
 
-    subgraph Thunderdome ["The Thunderdome"]
-        direction TB
-        style Thunderdome text-align:left
+### 2. Inside Use "The Thunderdome"
 
-        %% Track Definitions
-        Gemini["Gemini 3.0"]:::actor
-        Claude["Claude Opus 4.5"]:::actor
-        GPT["GPT 5.2"]:::actor
-        More["..."]:::file
+Zooming in on the **Thunderdome** process where agents compete:
 
-        %% The "Run"
-        Dispatcher -->|"Track A"| Gemini
-        Dispatcher -->|"Track B"| Claude
-        Dispatcher -->|"Track C"| GPT
-        Dispatcher -.->|"Track N"| More
+```mermaid
+flowchart TD
+    %% Styles
+    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
+    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
 
-        %% Verification Loop (Conceptual)
+    Gemini["Gemini 3.0"]:::actor
+    Claude["Claude Opus 4.5"]:::actor
+    GPT["GPT 5.2"]:::actor
+    More["..."]:::file
+
+    subgraph Tracks ["Parallel Execution"]
+        style Tracks text-align:left
         Gemini & Claude & GPT & More -->|"Generate & Verify"| Patches("Verified Patches"):::file
     end
 
-    %% Final Selection
     Patches --> Judge:::process
-    Judge --> Winner:::decision
 ```
 
 ---
