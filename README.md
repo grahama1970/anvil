@@ -66,13 +66,12 @@ flowchart TD
 
     %% Main Flow
     User:::actor -->|"Issue"| Anvil:::process
-    Anvil -->|"Scan"| Context:::file
-    Anvil -->|"Spawn"| Dispatcher:::process
+    Anvil -->|"Smart Scan (AST)"| Context("CONTEXT.md"):::process
+    Anvil -->|"Spawn"| Tracks(("Parallel Tracks")):::process
 
     subgraph Worktrees ["The Thunderdome"]
         direction TB
         style Worktrees text-align:left
-        Dispatcher -->|"Track A"| Gemini["Gemini 3.0"]:::actor
         Dispatcher -->|"Track B"| Claude["Claude Opus 4.5"]:::actor
         Dispatcher -->|"Track C"| GPT["GPT 5.2"]:::actor
         Dispatcher -.->|"Track N..."| More["..."]:::file
