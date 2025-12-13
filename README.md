@@ -72,8 +72,10 @@ flowchart TD
     subgraph Worktrees ["The Thunderdome"]
         direction TB
         style Worktrees text-align:left
-        Dispatcher -->|"Track A"| Gemini["Gemini 1.5 Pro"]:::actor
-        Dispatcher -->|"Track B"| Claude["Claude Sonnet"]:::actor
+        Dispatcher -->|"Track A"| Gemini["Gemini 3.0"]:::actor
+        Dispatcher -->|"Track B"| Claude["Claude Opus 4.5"]:::actor
+        Dispatcher -->|"Track C"| GPT["GPT 5.2"]:::actor
+        Dispatcher -.->|"Track N..."| More["..."]:::file
     end
 
     %% Track A Cycle
@@ -83,7 +85,7 @@ flowchart TD
     VerifyG -->|"Pass"| PatchG("PATCH.diff"):::file
 
     %% Track B Cycle
-    Claude -->|"Generate"| VerifyC{"Verify"}:::decision
+    Claude & GPT & More -->|"Generate"| VerifyC{"Verify"}:::decision
     VerifyC -->|"Pass"| PatchC("PATCH.diff"):::file
 
     %% Merging
