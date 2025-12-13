@@ -47,47 +47,40 @@ Anvil provides the **infrastructure of mistrust**:
 
 Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs where multiple agents enter, and only one patch leaves.
 
-```mermaid
-flowchart TD
-    %% Nodes
-    User(["User / Orchestrator"])
-    Anvil{"Anvil Engine"}
-    Context("CONTEXT.md")
-    Judge["Judge & Score"]
-    Winner(["Best Patch Selected"])
-    Dispatcher(("Tracks"))
+### 1. High-Level Architecture
 
+The flow from issue to resolution:
+
+```mermaid
+flowchart LR
     %% Styles
     classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
     classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
+    classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
+
+    User(["User / Orchestrator"]):::actor -->|"1. Issue"| Anvil{"Anvil Engine"}:::process
+    Anvil -->|"2. Scan"| Context("CONTEXT.md"):::process
+    Anvil -->|"3. Spawn"| Tracks(("Parallel Tracks")):::process
+    Tracks -->|"4. Collect"| Judge["Judge & Score"]:::decision
+    Judge -->|"5. Select"| Winner(["Best Patch"])
+```
+
+### 2. The Thunderdome (Agent Lifecycle)
+
+Inside each isolated track, agents fight to pass verification:
+
+```mermaid
+flowchart TD
+    %% Styles
+    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
     classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
     classDef fail fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#000
+    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
 
-    %% Main Flow
-    User:::actor -->|"Issue"| Anvil:::process
-    Anvil -->|"Scan"| Context:::file
-    Anvil -->|"Spawn"| Dispatcher:::process
-
-    subgraph Worktrees ["Parallel Execution in Isolated Worktrees"]
-        direction TB
-        Dispatcher -->|"Track A"| Gemini["Gemini 1.5 Pro"]:::actor
-        Dispatcher -->|"Track B"| Claude["Claude Sonnet"]:::actor
-    end
-
-    %% Track A Cycle
-    Gemini -->|"Generate"| VerifyG{"Verify"}:::decision
-    VerifyG -->|"Fail"| RetryG["Retry"]:::fail
-    RetryG --> Gemini
-    VerifyG -->|"Pass"| PatchG("PATCH.diff"):::file
-
-    %% Track B Cycle
-    Claude -->|"Generate"| VerifyC{"Verify"}:::decision
-    VerifyC -->|"Pass"| PatchC("PATCH.diff"):::file
-
-    %% Merging
-    PatchG & PatchC --> Judge:::process
-    Judge --> Winner:::decision
+    Agent["Agent (e.g. Gemini)"]:::actor -->|"Generate"| Verify{"Verify"}:::decision
+    Verify -->|"Fail"| Retry["Retry Loop"]:::fail
+    Retry --> Agent
+    Verify -->|"Pass"| Patch("PATCH.diff"):::file
 ```
 
 ---
