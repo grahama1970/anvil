@@ -50,12 +50,12 @@ Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs 
 ```mermaid
 flowchart TD
     %% Nodes
-    User([User / Orchestrator])
-    Anvil{Anvil Engine}
-    Context(CONTEXT.md)
-    Judge[Judge & Score]
-    Winner([Best Patch Selected])
-    Dispatcher((Tracks))
+    User(["User / Orchestrator"])
+    Anvil{"Anvil Engine"}
+    Context("CONTEXT.md")
+    Judge["Judge & Score"]
+    Winner(["Best Patch Selected"])
+    Dispatcher(("Tracks"))
 
     %% Styles
     classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
@@ -65,25 +65,25 @@ flowchart TD
     classDef fail fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#000
 
     %% Main Flow
-    User:::actor -->|1. Issue| Anvil:::process
-    Anvil -->|2. Scan| Context:::file
-    Anvil -->|3. Spawn| Dispatcher:::process
+    User:::actor -->|"Issue"| Anvil:::process
+    Anvil -->|"Scan"| Context:::file
+    Anvil -->|"Spawn"| Dispatcher:::process
 
-    subgraph Worktrees [Parallel Execution in Isolated Worktrees]
+    subgraph Worktrees ["Parallel Execution in Isolated Worktrees"]
         direction TB
-        Dispatcher -->|Track A| Gemini[Gemini 1.5 Pro]:::actor
-        Dispatcher -->|Track B| Claude[Claude Sonnet]:::actor
+        Dispatcher -->|"Track A"| Gemini["Gemini 1.5 Pro"]:::actor
+        Dispatcher -->|"Track B"| Claude["Claude Sonnet"]:::actor
     end
 
     %% Track A Cycle
-    Gemini -->|Generate| VerifyG{Verify}:::decision
-    VerifyG -->|Fail| RetryG[Retry]:::fail
+    Gemini -->|"Generate"| VerifyG{"Verify"}:::decision
+    VerifyG -->|"Fail"| RetryG["Retry"]:::fail
     RetryG --> Gemini
-    VerifyG -->|Pass| PatchG(PATCH.diff):::file
+    VerifyG -->|"Pass"| PatchG("PATCH.diff"):::file
 
     %% Track B Cycle
-    Claude -->|Generate| VerifyC{Verify}:::decision
-    VerifyC -->|Pass| PatchC(PATCH.diff):::file
+    Claude -->|"Generate"| VerifyC{"Verify"}:::decision
+    VerifyC -->|"Pass"| PatchC("PATCH.diff"):::file
 
     %% Merging
     PatchG & PatchC --> Judge:::process
