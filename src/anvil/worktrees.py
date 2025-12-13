@@ -186,12 +186,16 @@ class WorktreeManager:
             status_file = artifacts_run_dir / "RUN_STATUS.json"
             
             if not status_file.exists():
-                # If we can't confirm run status in default location, consider checking age
-                # Or just mark as stale? 
-                # Better safe: if directory is > 7 days old, mark stale regardless
-                pass
-            
-            stale.append((run_dir, run_id))
+                # If we can't confirm run status in default location, check directory age
+                from datetime import datetime, timedelta
+                mtime = datetime.fromtimestamp(run_dir.stat().st_mtime)
+                # Mark stale only if > 7 days old
+                if mtime < datetime.now() - timedelta(days=7):
+                    stale.append((run_dir, run_id))
+            else:
+                 # Check status content? Or just assume recent runs are valid?
+                 # For now, this method is primarily for diagnosis. 
+                 pass
             
         return stale
 

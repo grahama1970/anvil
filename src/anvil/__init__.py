@@ -36,7 +36,7 @@ def debug(
         tracks_file: Optional path to tracks.yaml config
     
     Returns:
-        dict with keys: status, run_dir, winner, patches
+        dict with keys: status, run_dir, winner, patch_file, patches
     """
     repo_path = Path(repo).resolve()
     cfg = RunConfig(
@@ -54,10 +54,39 @@ def debug(
     for p in result.run_dir.glob("tracks/*/iter_*/PATCH.diff"):
         patches.append(str(p))
     
+    # Parse decision to find winner
+    winner = None
+    if result.run_dir:
+        import json
+        try:
+            scorecard = result.run_dir / "SCORECARD.json"
+            if scorecard.exists():
+                data = json.loads(scorecard.read_text())
+                winner = data.get("winner")
+        except Exception:
+            pass
+
+    # Find best patch (if winner exists, their patch; else first patch?)
+    # README promises "patch_file". 
+    patch_file = None
+    if winner:
+         # Try to find winner's patch
+         # tracks/<winner>/iter_*/PATCH.diff
+         # We want the LAST one usually?
+         winner_patches = list(result.run_dir.glob(f"tracks/{winner}/iter_*/PATCH.diff"))
+         if winner_patches:
+             patch_file = str(sorted(winner_patches)[-1])
+    
+    # If no winner patch, but we have patches, maybe return one? 
+    # But strictly, the return value implies the "result patch".
+    # If no winner, patch_file is None.
+
     return {
         "status": result.status,
         "run_dir": str(result.run_dir),
         "decision_file": str(result.decision_file) if result.decision_file else None,
+        "winner": winner,
+        "patch_file": patch_file,
         "patches": patches,
     }
 
@@ -107,6 +136,7 @@ def harden(
         "run_dir": str(result.run_dir),
         "findings": findings,
         "patches": patches,
+        # Harden mode uses "findings" more than single winner, but let's be consistent if possible
     }
 
 
