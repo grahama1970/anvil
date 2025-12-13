@@ -69,26 +69,28 @@ flowchart TD
     Anvil -->|"Smart Scan (AST)"| Context("CONTEXT.md"):::process
     Anvil -->|"Spawn"| Tracks(("Parallel Tracks")):::process
 
-    subgraph Worktrees ["The Thunderdome"]
+    subgraph Thunderdome ["The Thunderdome"]
         direction TB
-        style Worktrees text-align:left
-        Dispatcher -->|"Track B"| Claude["Claude Opus 4.5"]:::actor
-        Dispatcher -->|"Track C"| GPT["GPT 5.2"]:::actor
-        Dispatcher -.->|"Track N..."| More["..."]:::file
+        style Thunderdome text-align:left
+
+        %% Track Definitions
+        Gemini["Gemini 3.0"]:::actor
+        Claude["Claude Opus 4.5"]:::actor
+        GPT["GPT 5.2"]:::actor
+        More["..."]:::file
+
+        %% The "Run"
+        Dispatcher -->|"Track A"| Gemini
+        Dispatcher -->|"Track B"| Claude
+        Dispatcher -->|"Track C"| GPT
+        Dispatcher -.->|"Track N"| More
+
+        %% Verification Loop (Conceptual)
+        Gemini & Claude & GPT & More -->|"Generate & Verify"| Patches("Verified Patches"):::file
     end
 
-    %% Track A Cycle
-    Gemini -->|"Generate"| VerifyG{"Verify"}:::decision
-    VerifyG -->|"Fail"| RetryG["Retry"]:::fail
-    RetryG --> Gemini
-    VerifyG -->|"Pass"| PatchG("PATCH.diff"):::file
-
-    %% Track B Cycle
-    Claude & GPT & More -->|"Generate"| VerifyC{"Verify"}:::decision
-    VerifyC -->|"Pass"| PatchC("PATCH.diff"):::file
-
-    %% Merging
-    PatchG & PatchC --> Judge:::process
+    %% Final Selection
+    Patches --> Judge:::process
     Judge --> Winner:::decision
 ```
 
