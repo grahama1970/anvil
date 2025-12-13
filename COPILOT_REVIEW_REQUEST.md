@@ -163,6 +163,94 @@ cat /tmp/test/*/HARDEN.md
 2. Is our implementation of repro modes equivalent?
 3. Should we add tmux integration for parity?
 
+### Identified Gaps from Original debug-mode
+
+Based on analysis of [`nicobailon/debug-mode`](https://github.com/nicobailon/debug-mode), we have identified the following gaps. **Please evaluate if each is worth implementing:**
+
+#### Gap 1: tmux Integration for Codex Sessions
+
+**Original debug-mode:** Runs Codex CLI in tmux sessions, allowing operators to observe/interact with running tracks.
+
+**Anvil:** Uses direct subprocess execution, output captured to log files.
+
+**Trade-offs:**
+
+- tmux: Interactive debugging, live observation
+- subprocess: Simpler, no tmux dependency, easier testing
+
+**Question:** Is tmux integration worth adding? Or is log-file capture sufficient for production use?
+
+---
+
+#### Gap 2: repomix Context Bundling
+
+**Original debug-mode:** Uses `npx repomix` to bundle codebase context with special formatting.
+
+**Anvil:** Uses custom `ContextBuilder` with optional treesitter support.
+
+**Trade-offs:**
+
+- repomix: Standard tool, consistent formatting, includes line numbers
+- ContextBuilder: Pure Python, no npm dependency, treesitter symbol extraction
+
+**Question:** Should we add repomix as an optional context builder backend? Is our ContextBuilder output equivalent in quality?
+
+---
+
+#### Gap 3: Model Alternation Pattern
+
+**Original debug-mode:**
+
+```
+Track A: Opus -> Opus (resume) -> Opus (resume) -> GPT (verify)
+Track B: GPT -> Opus -> GPT -> Opus (alternating)
+```
+
+**Anvil:** Each track uses a single provider/model for all iterations.
+
+**Question:** Is model alternation per-iteration worth implementing? Does it improve debugging success?
+
+---
+
+#### Gap 4: Explicit Track 0 Orchestrator
+
+**Original debug-mode:** Has a dedicated "Track 0" that runs Context Builder + Repro Assessment before spawning Track A/B.
+
+**Anvil:** Runs these steps inline in orchestrator before tracks.
+
+**Question:** Is the explicit Track 0 abstraction better? Should we refactor to match?
+
+---
+
+#### Gap 5: Progress Document Polling
+
+**Original debug-mode:** Uses `debug-mode status <track>` to poll progress documents for signals.
+
+**Anvil:** Signals are read from `ITERATION.json` after completion.
+
+**Question:** Is real-time progress polling worth implementing? Or is post-iteration signal checking sufficient?
+
+---
+
+#### Gap 6: Codex CLI Specific Integration
+
+**Original debug-mode:** Tightly integrated with OpenAI's Codex CLI (`codex exec`).
+
+**Anvil:** Uses generic provider abstraction (copilot, gemini, claude, manual).
+
+**Question:** Should we add a dedicated `codex` provider for parity? Is Codex CLI still relevant?
+
+---
+
+### Gap Analysis Request
+
+For each gap above, please provide:
+
+1. **Worth implementing?** (Yes / No / Maybe)
+2. **Priority:** (High / Medium / Low)
+3. **Effort estimate:** (Hours)
+4. **Rationale:** Why or why not?
+
 ---
 
 ## Part 4: Test Coverage Review
