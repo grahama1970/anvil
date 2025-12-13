@@ -51,37 +51,13 @@ Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs 
 
 The flow from issue to resolution:
 
-```mermaid
-flowchart LR
-    %% Styles
-    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
-    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-    classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
-
-    User(["User / Orchestrator"]):::actor -->|"Issue"| Anvil{"Anvil Engine"}:::process
-    Anvil -->|"Scan"| Context("CONTEXT.md"):::process
-    Anvil -->|"Spawn"| Tracks(("Parallel Tracks")):::process
-    Tracks -->|"Collect"| Judge["Judge & Score"]:::decision
-    Judge -->|"Select"| Winner(["Best Patch"])
-```
+![High-Level Architecture](docs/images/architecture.png)
 
 ### 2. The Thunderdome (Agent Lifecycle)
 
 Inside each isolated track, agents fight to pass verification:
 
-```mermaid
-flowchart TD
-    %% Styles
-    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
-    classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
-    classDef fail fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#000
-    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
-
-    Agent["Agent (e.g. Gemini)"]:::actor -->|"Generate"| Verify{"Verify"}:::decision
-    Verify -->|"Fail"| Retry["Retry Loop"]:::fail
-    Retry --> Agent
-    Verify -->|"Pass"| Patch("PATCH.diff"):::file
-```
+![Agent Lifecycle](docs/images/lifecycle.png)
 
 ---
 
