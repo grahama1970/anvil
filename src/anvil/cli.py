@@ -97,7 +97,7 @@ _RUN_ID_OPTION = typer.Option(
 )
 _RUN_ID_REQUIRED_OPTION = typer.Option(
     ...,
-    "--run",
+    "--run-id",
     help="Run id.",
 )
 _TRACKS_FILE_OPTION = typer.Option(
@@ -398,6 +398,7 @@ def cleanup_stale(
     repo: Path = _REPO_OPTION_PLAIN,
     artifacts_dir: Path = _ARTIFACTS_DIR_OPTION_ROOT,
     older_than: int = typer.Option(7, "--older-than", help="Days threshold"),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation prompt"),
 ) -> None:
     """Clean stale worktrees older than N days."""
     from .worktrees import WorktreeManager
@@ -405,6 +406,16 @@ def cleanup_stale(
     
     store = ArtifactStore(artifacts_dir / "dummy")
     wt = WorktreeManager(repo, store)
+    
+    # First, check what would be deleted
+    stale = wt.find_stale_worktrees()
+    if not stale:
+        console.print("No stale worktrees found.")
+        return
+    
+    if not yes:
+        if not typer.confirm(f"This will remove {len(stale)} stale worktree run(s). Continue?"):
+            raise typer.Abort()
     
     count = wt.cleanup_stale_worktrees(older_than_days=older_than)
     if count > 0:

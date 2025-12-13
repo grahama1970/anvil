@@ -126,15 +126,16 @@ result = anvil.debug(
 )
 
 if result["status"] == "OK":
-    print(f"Winner: {result['winning_track']}")
+    print(f"Winner: {result['winner']}")
     print(f"Patch Path: {result['patch_file']}")
 
 # 2. Harden a codebase
-# Returns a list of vulnerabilities found and patches to fix them
+# Returns findings and patches (no single "winner")
 security_scan = anvil.harden(
     repo="/path/to/repo",
     focus="Find SQL injection vulnerabilities"
 )
+print(security_scan["findings"])  # HARDEN.md content
 ```
 
 ---
