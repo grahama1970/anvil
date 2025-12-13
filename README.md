@@ -47,17 +47,48 @@ Anvil provides the **infrastructure of mistrust**:
 
 Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs where multiple agents enter, and only one patch leaves.
 
-### 1. High-Level Architecture
+```mermaid
+flowchart TD
+    %% Nodes
+    User(["User / Orchestrator"])
+    Anvil{"Anvil Engine"}
+    Context("CONTEXT.md")
+    Judge["Judge & Score"]
+    Winner(["Best Patch Selected"])
+    Dispatcher(("Tracks"))
 
-The flow from issue to resolution:
+    %% Styles
+    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
+    classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
+    classDef fail fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#000
 
-![High-Level Architecture](docs/images/architecture.png)
+    %% Main Flow
+    User:::actor -->|"Issue"| Anvil:::process
+    Anvil -->|"Scan"| Context:::file
+    Anvil -->|"Spawn"| Dispatcher:::process
 
-### 2. The Thunderdome (Agent Lifecycle)
+    subgraph Worktrees ["Parallel Execution in Isolated Worktrees"]
+        direction TB
+        Dispatcher -->|"Track A"| Gemini["Gemini 1.5 Pro"]:::actor
+        Dispatcher -->|"Track B"| Claude["Claude Sonnet"]:::actor
+    end
 
-Inside each isolated track, agents fight to pass verification:
+    %% Track A Cycle
+    Gemini -->|"Generate"| VerifyG{"Verify"}:::decision
+    VerifyG -->|"Fail"| RetryG["Retry"]:::fail
+    RetryG --> Gemini
+    VerifyG -->|"Pass"| PatchG("PATCH.diff"):::file
 
-![Agent Lifecycle](docs/images/lifecycle.png)
+    %% Track B Cycle
+    Claude -->|"Generate"| VerifyC{"Verify"}:::decision
+    VerifyC -->|"Pass"| PatchC("PATCH.diff"):::file
+
+    %% Merging
+    PatchG & PatchC --> Judge:::process
+    Judge --> Winner:::decision
+```
 
 ---
 
