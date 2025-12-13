@@ -48,26 +48,46 @@ Anvil provides the **infrastructure of mistrust**:
 Anvil automates the lifecycle of a bug fix. It creates a "Thunderdome" for bugs where multiple agents enter, and only one patch leaves.
 
 ```mermaid
-graph TD
-    User[User / Orchestrator] -->|1. Issue Desc| Anvil
-    Anvil -->|2. Scans Repo| Context[CONTEXT.md]
-    Anvil -->|3. Spawns Tracks| Tracks
+flowchart TD
+    %% Nodes
+    User([User / Orchestrator])
+    Anvil{Anvil Engine}
+    Context(CONTEXT.md)
+    Judge[Judge & Score]
+    Winner([Best Patch Selected])
+    Dispatcher((Tracks))
 
-    subgraph "Parallel Execution (Isolated Worktrees)"
-        Tracks -->|Track A| Agent1[Gemini 1.5 Pro]
-        Tracks -->|Track B| Agent2[Claude Sonnet]
-        Tracks -->|Track C| Agent3[Manual/Human]
+    %% Styles
+    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+    classDef file fill:#fff8e1,stroke:#ff6f00,stroke-width:1px,stroke-dasharray: 5 5,color:#000
+    classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
+    classDef fail fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#000
+
+    %% Main Flow
+    User:::actor -->|1. Issue| Anvil:::process
+    Anvil -->|2. Scan| Context:::file
+    Anvil -->|3. Spawn| Dispatcher:::process
+
+    subgraph Worktrees [Parallel Execution in Isolated Worktrees]
+        direction TB
+        Dispatcher -->|Track A| Gemini[Gemini 1.5 Pro]:::actor
+        Dispatcher -->|Track B| Claude[Claude Sonnet]:::actor
     end
 
-    Agent1 -->|Iterate| Verify1[Verify: FAIL]
-    Verify1 -->|Retry| Agent1
-    Agent1 -->|Success| Patch1[PATCH.diff]
+    %% Track A Cycle
+    Gemini -->|Generate| VerifyG{Verify}:::decision
+    VerifyG -->|Fail| RetryG[Retry]:::fail
+    RetryG --> Gemini
+    VerifyG -->|Pass| PatchG(PATCH.diff):::file
 
-    Agent2 -->|Iterate| Verify2[Verify: PASS]
-    Verify2 -->|Success| Patch2[PATCH.diff]
+    %% Track B Cycle
+    Claude -->|Generate| VerifyC{Verify}:::decision
+    VerifyC -->|Pass| PatchC(PATCH.diff):::file
 
-    Patch1 & Patch2 --> Judge[Judge & Score]
-    Judge --> Winner[Best Patch Selected]
+    %% Merging
+    PatchG & PatchC --> Judge:::process
+    Judge --> Winner:::decision
 ```
 
 ---
