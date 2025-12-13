@@ -58,11 +58,11 @@ flowchart LR
     classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
     classDef decision fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
 
-    User(["User / Orchestrator"]):::actor -->|"1. Issue"| Anvil{"Anvil Engine"}:::process
-    Anvil -->|"2. Scan"| Context("CONTEXT.md"):::process
-    Anvil -->|"3. Spawn"| Tracks(("Parallel Tracks")):::process
-    Tracks -->|"4. Collect"| Judge["Judge & Score"]:::decision
-    Judge -->|"5. Select"| Winner(["Best Patch"])
+    User(["User / Orchestrator"]):::actor -->|"Issue"| Anvil{"Anvil Engine"}:::process
+    Anvil -->|"Scan"| Context("CONTEXT.md"):::process
+    Anvil -->|"Spawn"| Tracks(("Parallel Tracks")):::process
+    Tracks -->|"Collect"| Judge["Judge & Score"]:::decision
+    Judge -->|"Select"| Winner(["Best Patch"])
 ```
 
 ### 2. The Thunderdome (Agent Lifecycle)
