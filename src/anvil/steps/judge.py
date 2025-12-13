@@ -22,13 +22,19 @@ from ..artifacts.schemas import JudgeDecision
 from ..artifacts.store import ArtifactStore
 from ..contracts.validate import check_required_artifacts
 
+from ..config import TrackConfig
+
 
 @dataclass
 class Judge:
     name: str = "judge"
 
     def run(
-        self, store: ArtifactStore, candidate_tracks: list[str], disqualified: list[str]
+        self,
+        store: ArtifactStore,
+        candidate_tracks: list[str],
+        disqualified: list[str],
+        tracks_config: dict[str, TrackConfig] | None = None
     ) -> JudgeDecision:
         scores: dict[str, float] = {}
         track_details: dict[str, list[str]] = {}
@@ -37,10 +43,10 @@ class Judge:
             if t in disqualified:
                 scores[t] = -1e9
                 continue
-            
+
             score = 0.0
             details = []
-            
+
             # 1. Per-track verification (in worktree artifacts)
             # The verify step runs in worktrees, but orchestrator might only run global verify?
             # Orchestrator currently runs global Verify() at the end.
@@ -50,20 +56,20 @@ class Judge:
             # Orchestrator does NOT currently apply patches for verification of each track individually in the loop.
             # But wait, Verify() checks `repro_script`.
             # If we rely on global verify, we only know if the repo *currently* passes.
-            # But the repo might be clean or dirty. 
-            
+            # But the repo might be clean or dirty.
+
             # Task 3.2 says: "Run verification per-worktree OR use per-track metrics"
             # Since we assume the agent ran verification in its loop (not implemented yet fully in orchestrator logic for per-track)
             # We will check if `VERIFY.md` exists in the track's artifact folder (from `TrackIterate` or similar).
-            # Currently `TrackIterate` doesn't run verify explicitly. 
-            # BUT, the global verify runs at the end. 
+            # Currently `TrackIterate` doesn't run verify explicitly.
+            # BUT, the global verify runs at the end.
             # If we want per-track, we should look at `ITERATION.json` for self-reported verification?
-            
+
             # Let's use `confidence` from ITERATION.json as primary signal + global verify if applicable.
             # And check if the track produced a valid patch.
 
             tdir = store.path("tracks", t)
-            
+
             # Latest iteration
             iters = sorted(tdir.glob("iter_*/ITERATION.json"))
             confidence = 0.0
@@ -79,33 +85,35 @@ class Judge:
                     details.append(f"Confidence {confidence:.2f} (+{confidence * 50.0:.1f})")
                 except Exception:
                     details.append("Error reading confidence")
-            
-            # Patch presence - role-aware penalty
-            patches = list(tdir.glob("iter_*/PATCH.diff"))
-            # Check track role from latest iteration
-            track_role = "fixer"  # default
-            if iters:
+
+            # Role detection via config (preferred) -> iteration artifact (fallback) -> default
+            track_role = "fixer"
+            if tracks_config and t in tracks_config:
+                track_role = tracks_config[t].role.lower()
+            elif iters:
+                # Fallback to iteration metadata if config missing
                 try:
-                    import json
-                    data = json.loads(iters[-1].read_text())
-                    # Role might be stored in iteration or inferred from track name
-                    if "breaker" in t.lower() or "explorer" in t.lower():
-                        track_role = "breaker"
+                    # Some providers/prompts might accept 'role' in meta, but we haven't standardized saving it in JSON body yet.
+                    pass
                 except Exception:
                     pass
-            
+
+            is_fixer = track_role in ("fixer", "debugger", "backend_fixer", "frontend_fixer")
+
+            # Patch presence
+            patches = list(tdir.glob("iter_*/PATCH.diff"))
             if patches:
                 score += 20.0
                 details.append("Patch found (+20)")
             else:
                 # Only penalize fixer roles heavily for missing patches
-                if track_role == "fixer":
+                if is_fixer:
                     score -= 50.0
-                    details.append("No patch (-50, fixer role)")
+                    details.append(f"No patch (-50, {track_role} role)")
                 else:
                     # Breaker/explorer tracks: small penalty or neutral
                     score -= 10.0
-                    details.append("No patch (-10, non-fixer role)")
+                    details.append(f"No patch (-10, {track_role} role)")
 
             # Per-track VERIFY.md existence and signal
             verify_files = sorted(tdir.glob("iter_*/VERIFY.md"))

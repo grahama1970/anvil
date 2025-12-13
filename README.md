@@ -18,11 +18,15 @@ either from a human terminal or by an orchestrator agent.
 - [**Contributing Guide**](CONTRIBUTING.md): How to develop and extend Anvil.
 - [**System Contract**](docs/CONTRACT.md): The "No Vibes" guarantee.
 
+## Attribution & Inspiration
+
+**Anvil** is a Python reimplementation and extension of [nicobailon/debug-mode](https://github.com/nicobailon/debug-mode), a TypeScript-based debugging skill. Anvil adds new capabilities like **harden mode**, N-track configuration, and a Python API.
+
 ## Installation
 
 ```bash
 # Clone and install
-git clone https://github.com/google-deepmind/anvil.git
+git clone https://github.com/grahama1970/anvil.git
 cd anvil
 pip install -e .
 ```

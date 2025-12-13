@@ -35,6 +35,10 @@ class WorktreeManager:
     def _worktrees_root(self) -> Path:
         return self.repo / ".dbg" / "worktrees" / self.store.run_dir.name
 
+    def get_worktree_path(self, track: str) -> Path:
+        """Get the absolute path to a track's worktree."""
+        return self._worktrees_root() / track
+
     def create_worktrees(self, tracks: list[str]) -> None:
         """Create one git worktree per track.
 

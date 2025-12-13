@@ -38,6 +38,7 @@ from .steps.apply import Apply
 from .steps.context_builder import ContextBuilder
 from .steps.judge import Judge
 from .steps.repro_assess import ReproAssess
+from .util.shell import run_cmd
 from .steps.repro_plan import ReproPlan
 from .steps.track_iterate import TrackIterate
 from .steps.verify import Verify
@@ -308,9 +309,11 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
                     bb_path = store.path("BLACKBOARD.md")
                     current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
                     
+
+
                     await iter_step.run(
                         store=store,
-                        repo=cfg.repo_path,
+                        repo=wt.get_worktree_path(t.name),
                         track=t.name,
                         role=t.role,
                         provider=provider,
@@ -319,6 +322,27 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
                         context_text=context_text,
                         blackboard_text=current_bb,
                     )
+                    
+                    # Opportunistic Verification (for Judge signals)
+                    patch_path = store.path("tracks", t.name, f"iter_{iteration:02d}", "PATCH.diff")
+                    if patch_path.exists():
+                        wt_path = wt.get_worktree_path(t.name)
+                        try:
+                            # 1. Apply patch
+                            apply_cmd = f'git apply --whitespace=nowarn "{patch_path}"'
+                            apply_res = run_cmd(apply_cmd, cwd=wt_path, timeout_s=30)
+                            
+                            if apply_res.returncode == 0:
+                                # 2. Run Verify
+                                iter_store = ArtifactStore(store.path("tracks", t.name, f"iter_{iteration:02d}"))
+                                Verify().run(iter_store, wt_path)
+                            
+                            # 3. Revert (clean up worktree for next iteration)
+                            # We assume next iteration starts from clean state + potentially previous valid patch?
+                            # Current Anvil doesn't support cumulative patches in loop yet (stateless iterations).
+                            run_cmd("git checkout .", cwd=wt_path)
+                        except Exception:
+                            pass
                     
                     chk = TrackIterate().check(store, cfg.repo_path, track=t.name, iteration=iteration)
                     if chk != 0:
@@ -378,7 +402,8 @@ async def run_debug_session(cfg: RunConfig) -> RunResult:
 
         # Judge
         ev.emit(stage="judge", action="run")
-        decision = Judge().run(store, [t.name for t in tracks], disqualified=disqualified)
+        tracks_map = {t.name: t for t in tracks}
+        decision = Judge().run(store, [t.name for t in tracks], disqualified=disqualified, tracks_config=tracks_map)
         Judge().check(store, cfg.repo_path)
 
         # Apply (only if we have a patch and ANVIL_AUTO_APPLY is enabled)
@@ -515,22 +540,12 @@ async def run_harden_session(cfg: RunConfig) -> RunResult:
                     bb_path = store.path("BLACKBOARD.md")
                     current_bb = bb_path.read_text(encoding="utf-8", errors="ignore") if bb_path.exists() else ""
                     
-                    # Harden-specific directions
-                    harden_directions = (
-                        f"You are a security/quality breaker agent.\n"
-                        f"Your goal: Find bugs, vulnerabilities, edge cases, or missing tests in this codebase.\n"
-                        f"For each finding, produce a PATCH.diff that either:\n"
-                        f"1. Adds a test case that exposes the issue, OR\n"
-                        f"2. Fixes the vulnerability directly.\n"
-                        f"Focus on: null checks, error handling, race conditions, input validation.\n"
-                    )
-                    
                     await iter_step.run(
                         store=store,
-                        repo=cfg.repo_path,
+                        repo=wt.get_worktree_path(t.name),
                         track=t.name,
                         role=t.role or "breaker",
-                        directions_text=harden_directions,
+                        directions_profile="harden",
                         context_text=context_md[:15000],
                         blackboard_text=current_bb,
                         iteration=iteration,

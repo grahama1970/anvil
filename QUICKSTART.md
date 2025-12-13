@@ -13,7 +13,7 @@ This guide will help you get up and running with Anvil in under 5 minutes.
 1.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/google-deepmind/anvil.git
+    git clone https://github.com/grahama1970/anvil.git
     cd anvil
     ```
 
